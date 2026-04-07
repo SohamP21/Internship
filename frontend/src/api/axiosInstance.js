@@ -1,9 +1,16 @@
 import axios from 'axios';
 
-// In dev, Vite proxies /api → backend (see vite.config.js) so CORS is not an issue.
-const baseURL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? '/api' : 'http://localhost:5000/api');
+const envApiUrl = import.meta.env.VITE_API_URL?.trim();
+
+// Normalize VITE_API_URL so both of these work:
+// - VITE_API_URL=https://your-backend.com
+// - VITE_API_URL=https://your-backend.com/api
+const normalizedEnvApiUrl = envApiUrl
+  ? (envApiUrl.endsWith('/api') ? envApiUrl : `${envApiUrl}/api`)
+  : null;
+
+// If VITE_API_URL is not set, fallback to Vite proxy path.
+const baseURL = normalizedEnvApiUrl || '/api';
 
 const axiosInstance = axios.create({
   baseURL,
