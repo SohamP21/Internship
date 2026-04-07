@@ -3,7 +3,11 @@ import * as eventController from './event.controller.js';
 import authenticate         from '../../middleware/authenticate.js';
 import authorize            from '../../middleware/authorize.js';
 import validate             from '../../middleware/validate.js';
-import { createEventSchema, updateStatusSchema } from './event.validation.js';
+import {
+  createEventSchema,
+  updateStatusSchema,
+  extendRegistrationDeadlineSchema,
+} from './event.validation.js';
 
 const router = Router();
 
@@ -33,6 +37,13 @@ router.patch(
   authorize('coordinator'),
   validate(updateStatusSchema),
   eventController.transitionStatus
+);
+
+router.patch(
+  '/:id/registration-deadline',
+  authorize('coordinator'),
+  validate(extendRegistrationDeadlineSchema),
+  eventController.extendRegistrationDeadline
 );
 
 router.delete(

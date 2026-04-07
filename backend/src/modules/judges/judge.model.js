@@ -24,8 +24,8 @@ const judgeProfileSchema = new mongoose.Schema(
     },
     slotNumber: {
       type:     Number,
-      enum:     [1, 2, 3],
       required: true,
+      min:      1,
     },
   },
   { timestamps: true }

@@ -5,18 +5,21 @@ import mongoose from 'mongoose';
 const slotSchema = new mongoose.Schema({
   slotNumber: {
     type:     Number,
-    enum:     [1, 2, 3],
     required: true,
+    min:      1,
   },
   date: {
     type:     Date,
     required: true,
   },
   startTime: {
-    type:     String,  // e.g. "10:00 AM"
+    type:     String,  // e.g. "10:00"
     required: true,
   },
-  // Duration stays a config constant for now — easy to promote to a field later
+  endTime: {
+    type:     String,  // e.g. "13:00"
+    required: true,
+  },
   judgeCount: {
     type:    Number,
     default: 0,
@@ -70,8 +73,8 @@ const eventSchema = new mongoose.Schema(
     slots: {
       type:     [slotSchema],
       validate: {
-        validator: (arr) => arr.length === 3,
-        message:   'Exactly 3 judging slots are required',
+        validator: (arr) => arr.length >= 1,
+        message:   'At least 1 judging slot is required',
       },
     },
     rubric: {
@@ -84,6 +87,13 @@ const eventSchema = new mongoose.Schema(
       },
     },
     registrationDeadline: {
+      type: Date,
+    },
+    /** Overall event window (optional; for display / planning — distinct from judging slot times) */
+    eventStartDate: {
+      type: Date,
+    },
+    eventEndDate: {
       type: Date,
     },
   },

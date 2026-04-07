@@ -6,7 +6,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, token } = useAuthStore();
 
   if (!token) return <Navigate to="/login" replace />;
-  if (!user)  return null; // still loading user from /me
+  if (!user) {
+    return (
+      <div className="loading-wrapper" style={{ minHeight: '100vh' }}>
+        <div className="spinner" />
+        <span className="loading-text">Loading your session…</span>
+      </div>
+    );
+  }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // Redirect to their own dashboard if they land on wrong role's page

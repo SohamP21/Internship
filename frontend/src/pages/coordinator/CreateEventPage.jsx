@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createEventApi } from '../../api/eventApi';
+import Layout from '../../components/Layout';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
-// ── Step indicators ───────────────────────────────────────────
 const steps = ['Event Details', 'Judging Slots', 'Rubric'];
 
 const CreateEventPage = () => {
@@ -11,26 +12,25 @@ const CreateEventPage = () => {
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
-  // ── Form state ────────────────────────────────────────────
   const [details, setDetails] = useState({
-    title:                '',
-    description:          '',
+    title: '',
+    description: '',
     registrationDeadline: '',
-    domainInput:          '',   // current input for adding a domain tag
-    domains:              [],
+    eventStartDate: '',
+    eventEndDate: '',
+    domainInput: '',
+    domains: [],
   });
+  const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
 
   const [slots, setSlots] = useState([
-    { slotNumber: 1, date: '', startTime: '' },
-    { slotNumber: 2, date: '', startTime: '' },
-    { slotNumber: 3, date: '', startTime: '' },
+    { slotNumber: 1, date: '', startTime: '', endTime: '' },
   ]);
 
   const [criteria, setCriteria] = useState([
     { name: '', maxScore: '' },
   ]);
 
-  // ── Domain tag helpers ────────────────────────────────────
   const addDomain = () => {
     const val = details.domainInput.trim();
     if (!val || details.domains.includes(val)) return;
@@ -40,7 +40,6 @@ const CreateEventPage = () => {
   const removeDomain = (d) =>
     setDetails((p) => ({ ...p, domains: p.domains.filter((x) => x !== d) }));
 
-  // ── Slot helpers ──────────────────────────────────────────
   const updateSlot = (index, field, value) => {
     setSlots((prev) => {
       const updated = [...prev];
@@ -49,7 +48,19 @@ const CreateEventPage = () => {
     });
   };
 
-  // ── Rubric helpers ────────────────────────────────────────
+  const addSlot = () => {
+    setSlots((prev) => [
+      ...prev,
+      { slotNumber: prev.length + 1, date: '', startTime: '', endTime: '' },
+    ]);
+  };
+
+  const removeSlot = (index) => {
+    setSlots((prev) =>
+      prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, slotNumber: i + 1 }))
+    );
+  };
+
   const addCriterion  = () => setCriteria((p) => [...p, { name: '', maxScore: '' }]);
   const removeCriterion = (i) => setCriteria((p) => p.filter((_, idx) => idx !== i));
   const updateCriterion = (i, field, value) => {
@@ -60,7 +71,6 @@ const CreateEventPage = () => {
     });
   };
 
-  // ── Step validation before advancing ─────────────────────
   const validateStep = () => {
     setError('');
     if (step === 0) {
@@ -68,8 +78,9 @@ const CreateEventPage = () => {
       if (details.domains.length === 0) return setError('Add at least one domain') || false;
     }
     if (step === 1) {
+      if (slots.length === 0) return setError('Add at least one judging slot') || false;
       for (const s of slots) {
-        if (!s.date || !s.startTime) return setError('All 3 slots need a date and start time') || false;
+        if (!s.date || !s.startTime || !s.endTime) return setError('All slots need a date, start time, and end time') || false;
       }
     }
     if (step === 2) {
@@ -85,21 +96,22 @@ const CreateEventPage = () => {
   const next = () => { if (validateStep()) setStep((s) => s + 1); };
   const back = () => { setError(''); setStep((s) => s - 1); };
 
-  // ── Final submit ──────────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!validateStep()) return;
+  const performCreate = async () => {
+    setCreateConfirmOpen(false);
     setLoading(true);
     setError('');
     try {
       await createEventApi({
-        title:                details.title,
-        description:          details.description,
-        domains:              details.domains,
+        title: details.title,
+        description: details.description,
+        domains: details.domains,
         registrationDeadline: details.registrationDeadline || undefined,
+        eventStartDate: details.eventStartDate || undefined,
+        eventEndDate: details.eventEndDate || undefined,
         slots,
         rubric: {
           criteria: criteria.map((c) => ({
-            name:     c.name,
+            name: c.name,
             maxScore: Number(c.maxScore),
           })),
         },
@@ -112,60 +124,89 @@ const CreateEventPage = () => {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────
-  return (
-    <div style={{ maxWidth: 600, margin: '40px auto', padding: '0 1rem' }}>
-      <h2>Create New Event</h2>
+  const handleSubmit = () => {
+    if (!validateStep()) return;
+    setCreateConfirmOpen(true);
+  };
 
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
+  return (
+    <Layout maxWidth="narrow">
+      <button onClick={() => navigate('/coordinator/dashboard')} className="back-btn">
+        ← Back to Dashboard
+      </button>
+      <h2 className="gradient-text" style={{ marginBottom: 8 }}>Create New Event</h2>
+
+      {/* Step Indicator */}
+      <div className="step-indicator">
         {steps.map((s, i) => (
-          <div key={s} style={{
-            flex: 1, padding: '8px 0', textAlign: 'center',
-            borderBottom: `3px solid ${i === step ? '#4F46E5' : '#e0e0e0'}`,
-            color: i === step ? '#4F46E5' : '#999', fontSize: 13, fontWeight: i === step ? 600 : 400,
-          }}>
-            {i + 1}. {s}
+          <div key={s} className={`step-item ${i === step ? 'active' : i < step ? 'completed' : ''}`}>
+            {i < step ? '✓' : i + 1}. {s}
           </div>
         ))}
       </div>
 
-      {error && <p style={{ color: 'red', marginBottom: 16 }}>{error}</p>}
+      {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>⚠ {error}</div>}
 
-      {/* ── Step 0: Event Details ── */}
+      {/* Step 0: Event Details */}
       {step === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <label>Event Title *</label>
-            <input value={details.title} onChange={(e) => setDetails((p) => ({ ...p, title: e.target.value }))}
-              placeholder="e.g. Technovate 2025" style={inputStyle} />
+        <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="form-group">
+            <label className="form-label">Event Title *</label>
+            <input value={details.title}
+              onChange={(e) => setDetails((p) => ({ ...p, title: e.target.value }))}
+              placeholder="e.g. Technovate 2025" className="form-input" />
           </div>
-          <div>
-            <label>Description</label>
-            <textarea value={details.description} onChange={(e) => setDetails((p) => ({ ...p, description: e.target.value }))}
-              placeholder="What is this event about?" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+          <div className="form-group">
+            <label className="form-label">Description</label>
+            <textarea value={details.description}
+              onChange={(e) => setDetails((p) => ({ ...p, description: e.target.value }))}
+              placeholder="What is this event about?" rows={3} className="form-textarea" />
           </div>
-          <div>
-            <label>Registration Deadline</label>
+          <div className="form-group">
+            <label className="form-label">Event start date</label>
+            <input
+              type="date"
+              value={details.eventStartDate}
+              onChange={(e) => setDetails((p) => ({ ...p, eventStartDate: e.target.value }))}
+              className="form-input"
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
+              Optional overall window for the competition (shown on your dashboard).
+            </p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Event end date</label>
+            <input
+              type="date"
+              value={details.eventEndDate}
+              onChange={(e) => setDetails((p) => ({ ...p, eventEndDate: e.target.value }))}
+              className="form-input"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Registration deadline</label>
             <input type="date" value={details.registrationDeadline}
               onChange={(e) => setDetails((p) => ({ ...p, registrationDeadline: e.target.value }))}
-              style={inputStyle} />
+              className="form-input" />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6 }}>
+              After this calendar day, new team sign-ups are blocked unless you extend it while open.
+            </p>
           </div>
-          <div>
-            <label>Domains *</label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <div className="form-group">
+            <label className="form-label">Domains *</label>
+            <div style={{ display: 'flex', gap: 8 }}>
               <input value={details.domainInput}
                 onChange={(e) => setDetails((p) => ({ ...p, domainInput: e.target.value }))}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDomain())}
                 placeholder="e.g. AI/ML — press Enter or click Add"
-                style={{ ...inputStyle, marginTop: 0, flex: 1 }} />
-              <button type="button" onClick={addDomain} style={secondaryBtn}>Add</button>
+                className="form-input" style={{ flex: 1 }} />
+              <button type="button" onClick={addDomain} className="btn btn-secondary btn-sm">Add</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
               {details.domains.map((d) => (
-                <span key={d} style={tagStyle}>
+                <span key={d} className="domain-tag removable">
                   {d}
-                  <button onClick={() => removeDomain(d)} style={tagRemoveBtn}>×</button>
+                  <button onClick={() => removeDomain(d)}>×</button>
                 </span>
               ))}
             </div>
@@ -173,103 +214,105 @@ const CreateEventPage = () => {
         </div>
       )}
 
-      {/* ── Step 1: Judging Slots ── */}
+      {/* Step 1: Judging Slots */}
       {step === 1 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <p style={{ color: '#666', fontSize: 14, margin: 0 }}>
-            Create 3 offline judging slots. Each slot is 3 hours long.
+        <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Create judging slots with start and end times. Add as many as you need.
           </p>
           {slots.map((slot, i) => (
-            <div key={i} style={{ padding: 16, border: '1px solid #e0e0e0', borderRadius: 8 }}>
-              <p style={{ margin: '0 0 12px', fontWeight: 600 }}>Slot {slot.slotNumber}</p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13 }}>Date</label>
+            <div key={i} className="glass-card no-hover">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <strong style={{ fontSize: '0.9rem' }}>Slot {slot.slotNumber}</strong>
+                {slots.length > 1 && (
+                  <button type="button" onClick={() => removeSlot(i)} className="btn btn-danger btn-sm">
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: 1, minWidth: 120 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Date</label>
                   <input type="date" value={slot.date}
                     onChange={(e) => updateSlot(i, 'date', e.target.value)}
-                    style={inputStyle} />
+                    className="form-input" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13 }}>Start Time</label>
+                <div className="form-group" style={{ flex: 1, minWidth: 100 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Start Time</label>
                   <input type="time" value={slot.startTime}
                     onChange={(e) => updateSlot(i, 'startTime', e.target.value)}
-                    style={inputStyle} />
+                    className="form-input" />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 100 }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>End Time</label>
+                  <input type="time" value={slot.endTime}
+                    onChange={(e) => updateSlot(i, 'endTime', e.target.value)}
+                    className="form-input" />
                 </div>
               </div>
             </div>
           ))}
+          <button type="button" onClick={addSlot} className="btn btn-secondary">+ Add Slot</button>
         </div>
       )}
 
-      {/* ── Step 2: Rubric ── */}
+      {/* Step 2: Rubric */}
       {step === 2 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <p style={{ color: '#666', fontSize: 14, margin: 0 }}>
+        <div className="animate-fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Define the judging criteria. Judges will score each team on these.
           </p>
           {criteria.map((c, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <div style={{ flex: 2 }}>
-                <label style={{ fontSize: 13 }}>Criterion Name</label>
+              <div className="form-group" style={{ flex: 2 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Criterion Name</label>
                 <input value={c.name}
                   onChange={(e) => updateCriterion(i, 'name', e.target.value)}
-                  placeholder="e.g. Innovation" style={inputStyle} />
+                  placeholder="e.g. Innovation" className="form-input" />
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 13 }}>Max Score</label>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label" style={{ fontSize: '0.8rem' }}>Max Score</label>
                 <input type="number" min={1} value={c.maxScore}
                   onChange={(e) => updateCriterion(i, 'maxScore', e.target.value)}
-                  placeholder="10" style={inputStyle} />
+                  placeholder="10" className="form-input" />
               </div>
               {criteria.length > 1 && (
-                <button onClick={() => removeCriterion(i)}
-                  style={{ ...secondaryBtn, color: 'red', borderColor: 'red', marginBottom: 1 }}>
-                  Remove
+                <button onClick={() => removeCriterion(i)} className="btn btn-danger btn-sm" style={{ marginBottom: 2 }}>
+                  ×
                 </button>
               )}
             </div>
           ))}
-          <button onClick={addCriterion} style={secondaryBtn}>+ Add Criterion</button>
+          <button onClick={addCriterion} className="btn btn-secondary">+ Add Criterion</button>
         </div>
       )}
 
       {/* Navigation buttons */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32, gap: 12 }}>
         {step > 0
-          ? <button onClick={back} style={secondaryBtn}>← Back</button>
+          ? <button onClick={back} className="btn btn-ghost">← Back</button>
           : <div />
         }
         {step < 2
-          ? <button onClick={next} style={primaryBtn}>Next →</button>
-          : <button onClick={handleSubmit} disabled={loading} style={primaryBtn}>
-              {loading ? 'Creating...' : 'Create Event'}
+          ? <button type="button" onClick={next} className="btn btn-primary">Next →</button>
+          : <button type="button" onClick={handleSubmit} disabled={loading} className="btn btn-primary">
+              {loading ? 'Creating…' : '✦ Create Event'}
             </button>
         }
       </div>
-    </div>
-  );
-};
 
-const inputStyle = {
-  display: 'block', width: '100%', padding: '9px 12px', marginTop: 4,
-  border: '1px solid #ccc', borderRadius: 6, fontSize: 14, boxSizing: 'border-box',
-};
-const primaryBtn = {
-  padding: '10px 24px', background: '#4F46E5', color: '#fff',
-  border: 'none', borderRadius: 6, fontSize: 14, cursor: 'pointer',
-};
-const secondaryBtn = {
-  padding: '9px 16px', background: 'transparent', color: '#4F46E5',
-  border: '1px solid #4F46E5', borderRadius: 6, fontSize: 14, cursor: 'pointer',
-};
-const tagStyle = {
-  display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '4px 10px', background: '#EEF2FF', color: '#4F46E5',
-  borderRadius: 20, fontSize: 13,
-};
-const tagRemoveBtn = {
-  background: 'none', border: 'none', cursor: 'pointer',
-  color: '#4F46E5', fontSize: 16, lineHeight: 1, padding: 0,
+      <ConfirmDialog
+        open={createConfirmOpen}
+        title="Create this event?"
+        message="You can still delete it while it is in draft. After you open registrations, changes are limited."
+        confirmLabel="Create event"
+        cancelLabel="Go back"
+        variant="primary"
+        onConfirm={performCreate}
+        onCancel={() => setCreateConfirmOpen(false)}
+      />
+    </Layout>
+  );
 };
 
 export default CreateEventPage;

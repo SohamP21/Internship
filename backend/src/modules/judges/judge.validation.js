@@ -6,5 +6,6 @@ export const judgeOnboardSchema = z.object({
     .min(1, 'Select at least one domain'),
   slotNumber: z
     .number({ invalid_type_error: 'Slot number must be a number' })
-    .refine((n) => [1, 2, 3].includes(n), { message: 'Slot must be 1, 2, or 3' }),
+    .int()
+    .min(1, 'Slot number must be at least 1'),
 });

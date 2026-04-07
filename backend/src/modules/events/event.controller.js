@@ -35,3 +35,12 @@ export const deleteEvent = asyncHandler(async (req, res) => {
   const result = await eventService.deleteEvent(req.params.id, req.user._id);
   res.status(200).json(new ApiResponse(200, result));
 });
+
+export const extendRegistrationDeadline = asyncHandler(async (req, res) => {
+  const event = await eventService.extendRegistrationDeadline(
+    req.params.id,
+    req.user._id,
+    req.body.registrationDeadline
+  );
+  res.status(200).json(new ApiResponse(200, event, 'Registration deadline updated'));
+});

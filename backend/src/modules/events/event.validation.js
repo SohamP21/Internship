@@ -1,11 +1,10 @@
 import { z } from 'zod';
 
 const slotSchema = z.object({
-  slotNumber: z.union([
-    z.literal(1), z.literal(2), z.literal(3)
-  ]),
+  slotNumber: z.number().int().min(1, 'Slot number must be at least 1'),
   date:      z.string().min(1, 'Slot date is required'),
   startTime: z.string().min(1, 'Slot start time is required'),
+  endTime:   z.string().min(1, 'Slot end time is required'),
 });
 
 const criterionSchema = z.object({
@@ -17,11 +16,26 @@ export const createEventSchema = z.object({
   title:       z.string().min(3, 'Title must be at least 3 characters').trim(),
   description: z.string().optional(),
   domains:     z.array(z.string().min(1)).min(1, 'At least one domain is required'),
-  slots:       z.array(slotSchema).length(3, 'Exactly 3 slots are required'),
+  slots:       z.array(slotSchema).min(1, 'At least 1 judging slot is required'),
   rubric: z.object({
     criteria: z.array(criterionSchema).min(1, 'At least one rubric criterion is required'),
   }),
-  registrationDeadline: z.string().optional(),
+  registrationDeadline: z
+    .string()
+    .optional()
+    .transform((s) => (s && String(s).trim() ? s : undefined)),
+  eventStartDate: z
+    .string()
+    .optional()
+    .transform((s) => (s && String(s).trim() ? s : undefined)),
+  eventEndDate: z
+    .string()
+    .optional()
+    .transform((s) => (s && String(s).trim() ? s : undefined)),
+});
+
+export const extendRegistrationDeadlineSchema = z.object({
+  registrationDeadline: z.string().min(1, 'Registration deadline is required'),
 });
 
 export const updateStatusSchema = z.object({

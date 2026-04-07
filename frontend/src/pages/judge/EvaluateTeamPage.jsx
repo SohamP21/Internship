@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getJudgeAssignmentsApi, submitEvaluationApi, getMyEvaluationApi } from '../../api/evaluationApi';
+import Layout from '../../components/Layout';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const EvaluateTeamPage = () => {
   const { eventId, assignmentId } = useParams();
@@ -13,6 +15,7 @@ const EvaluateTeamPage = () => {
   const [remarks,     setRemarks]     = useState('');
   const [loading,     setLoading]     = useState(true);
   const [submitting,  setSubmitting]  = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [error,       setError]       = useState('');
 
   useEffect(() => {
@@ -41,11 +44,9 @@ const EvaluateTeamPage = () => {
 
         setAssignment(found);
 
-        // Rubric comes from the populated eventId on the assignment
         const criteria = found.eventId?.rubric?.criteria || [];
         setRubric(criteria);
 
-        // Initialise scores array from rubric
         setScores(criteria.map((c) => ({
           criterionName: c.name,
           maxScore:      c.maxScore,
@@ -73,17 +74,20 @@ const EvaluateTeamPage = () => {
   const totalScore    = scores.reduce((sum, s) => sum + s.score, 0);
   const maxTotalScore = rubric.reduce((sum, c) => sum + c.maxScore, 0);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
-    // Validate all scores filled
     for (const s of scores) {
       if (s.score === undefined || s.score === null || s.score === '') {
         return setError('Please fill in all scores before submitting');
       }
     }
+    setConfirmSubmit(true);
+  };
 
+  const executeEvaluationSubmit = async () => {
+    setConfirmSubmit(false);
     setSubmitting(true);
     try {
       await submitEvaluationApi(assignmentId, { scores, remarks });
@@ -95,29 +99,39 @@ const EvaluateTeamPage = () => {
     }
   };
 
-  if (loading) return <p style={{ padding: 40 }}>Loading...</p>;
+  if (loading) {
+    return (
+      <Layout maxWidth="narrow">
+        <div className="loading-wrapper">
+          <div className="spinner" />
+          <span className="loading-text">Loading…</span>
+        </div>
+      </Layout>
+    );
+  }
 
   // ── Read-only view after submission ──────────────────────────
   if (evaluation) {
     return (
-      <div style={{ maxWidth: 640, margin: '40px auto', padding: '0 1rem' }}>
-        <button onClick={() => navigate(`/judge/events/${eventId}/assignments`)} style={backBtn}>
+      <Layout maxWidth="narrow">
+        <button onClick={() => navigate(`/judge/events/${eventId}/assignments`)} className="back-btn">
           ← Back to Assignments
         </button>
-        <h2 style={{ margin: '12px 0 4px' }}>Evaluation Submitted</h2>
-        <p style={{ color: '#666', fontSize: 14, marginBottom: 28 }}>
+        <h2 className="gradient-text" style={{ marginBottom: 4 }}>Evaluation Submitted</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 28 }}>
           This evaluation is final and cannot be edited.
         </p>
 
-        <div style={{ border: '1px solid #9FE1CB', borderRadius: 10, padding: 24, background: '#f4fdf9' }}>
+        <div className="glass-card success no-hover animate-scale-in" style={{ padding: '1.5rem' }}>
           {evaluation.scores.map((s, i) => (
             <div key={i} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 0', borderBottom: i < evaluation.scores.length - 1 ? '1px solid #e8f5f1' : 'none',
+              padding: '14px 0',
+              borderBottom: i < evaluation.scores.length - 1 ? '1px solid var(--border)' : 'none',
             }}>
-              <span style={{ fontSize: 15, color: '#333' }}>{s.criterionName}</span>
-              <span style={{ fontWeight: 600, fontSize: 16, color: '#0F6E56' }}>
-                {s.score} <span style={{ color: '#999', fontWeight: 400, fontSize: 13 }}>/ {s.maxScore}</span>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{s.criterionName}</span>
+              <span style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--success)' }}>
+                {s.score} <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.8rem' }}>/ {s.maxScore}</span>
               </span>
             </div>
           ))}
@@ -125,86 +139,107 @@ const EvaluateTeamPage = () => {
           {/* Total */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginTop: 16, paddingTop: 16, borderTop: '2px solid #9FE1CB',
+            marginTop: 16, paddingTop: 16, borderTop: '2px solid var(--success-border)',
           }}>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>Total Score</span>
-            <span style={{ fontSize: 22, fontWeight: 700, color: '#0F6E56' }}>
+            <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Total Score</span>
+            <span className="score-big" style={{ color: 'var(--success)' }}>
               {evaluation.totalScore}
             </span>
           </div>
 
           {evaluation.remarks && (
-            <div style={{ marginTop: 16, padding: '12px 14px', background: '#e8f5f1', borderRadius: 6 }}>
-              <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: '#555' }}>Remarks</p>
-              <p style={{ margin: 0, fontSize: 14, color: '#333' }}>{evaluation.remarks}</p>
+            <div style={{
+              marginTop: 18, padding: '14px 16px',
+              background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+            }}>
+              <div className="section-label">Remarks</div>
+              <p style={{ margin: '6px 0 0', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                {evaluation.remarks}
+              </p>
             </div>
           )}
         </div>
-      </div>
+      </Layout>
     );
   }
 
-  if (error) return <p style={{ padding: 40, color: 'red' }}>{error}</p>;
-  if (!assignment) return <p style={{ padding: 40, color: 'red' }}>Assignment not found</p>;
+  if (error && !assignment) {
+    return (
+      <Layout maxWidth="narrow">
+        <div className="alert alert-danger">{error}</div>
+      </Layout>
+    );
+  }
+
+  if (!assignment) {
+    return (
+      <Layout maxWidth="narrow">
+        <div className="alert alert-danger">Assignment not found</div>
+      </Layout>
+    );
+  }
 
   const reg = assignment.registrationId;
 
   // ── Evaluation form ───────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 640, margin: '40px auto', padding: '0 1rem' }}>
-      <button onClick={() => navigate(`/judge/events/${eventId}/assignments`)} style={backBtn}>
+    <Layout maxWidth="narrow">
+      <button onClick={() => navigate(`/judge/events/${eventId}/assignments`)} className="back-btn">
         ← Back to Assignments
       </button>
 
-      <h2 style={{ margin: '12px 0 4px' }}>Evaluate Team</h2>
-      <p style={{ color: '#666', fontSize: 14, marginBottom: 4 }}>{reg?.teamName}</p>
-      <p style={{ color: '#A32D2D', fontSize: 13, marginBottom: 28 }}>
+      <h2 className="gradient-text" style={{ marginBottom: 4 }}>Evaluate Team</h2>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 4 }}>{reg?.teamName}</p>
+      <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: 28 }}>
         ⚠ Once submitted this evaluation is final and cannot be changed.
       </p>
 
       {error && (
-        <div style={{ padding: '10px 16px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 6, marginBottom: 20, fontSize: 14 }}>
-          {error}
-        </div>
+        <div className="alert alert-danger" style={{ marginBottom: 20 }}>⚠ {error}</div>
       )}
 
       {/* Team info */}
-      <div style={{ padding: 16, border: '1px solid #e0e0e0', borderRadius: 8, marginBottom: 24 }}>
-        <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: 14 }}>Team Details</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+      <div className="glass-card no-hover" style={{ marginBottom: 24 }}>
+        <div className="section-label">Team Details</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 10 }}>
           {reg?.domains?.map((d) => (
-            <span key={d} style={{ padding: '2px 10px', background: '#EEF2FF', color: '#4F46E5', borderRadius: 20, fontSize: 12 }}>{d}</span>
+            <span key={d} className="domain-tag">{d}</span>
           ))}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
           {reg?.members?.map((m, i) => (
-            <span key={i} style={{ fontSize: 12, background: '#f5f5f5', padding: '3px 10px', borderRadius: 6 }}>
+            <span key={i} className="member-tag">
               {m.name}{m.role ? ` — ${m.role}` : ''}
             </span>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {reg?.pptUrl      && <a href={reg.pptUrl}      target="_blank" rel="noreferrer" style={linkStyle}>📄 PPT</a>}
-          {reg?.abstractUrl && <a href={reg.abstractUrl}  target="_blank" rel="noreferrer" style={linkStyle}>📝 Abstract</a>}
-          {reg?.githubLink  && <a href={reg.githubLink}   target="_blank" rel="noreferrer" style={linkStyle}>🔗 GitHub</a>}
-          {reg?.driveLink   && <a href={reg.driveLink}    target="_blank" rel="noreferrer" style={linkStyle}>🎥 Drive</a>}
+          {reg?.pptUrl      && <a href={reg.pptUrl}      target="_blank" rel="noreferrer" className="deliverable-link">📄 PPT</a>}
+          {reg?.abstractUrl && <a href={reg.abstractUrl}  target="_blank" rel="noreferrer" className="deliverable-link">📝 Abstract</a>}
+          {reg?.githubLink  && <a href={reg.githubLink}   target="_blank" rel="noreferrer" className="deliverable-link">🔗 GitHub</a>}
+          {reg?.driveLink   && <a href={reg.driveLink}    target="_blank" rel="noreferrer" className="deliverable-link">🎥 Drive</a>}
         </div>
       </div>
 
       {/* Rubric scoring form */}
       <form onSubmit={handleSubmit}>
-        <p style={{ fontWeight: 600, fontSize: 15, margin: '0 0 16px' }}>Rubric Scores</p>
+        <p style={{ fontWeight: 700, fontSize: '0.9rem', margin: '0 0 16px', color: 'var(--text-primary)' }}>
+          Rubric Scores
+        </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
           {rubric.map((criterion, i) => (
-            <div key={i} style={{ padding: 16, border: '1px solid #e0e0e0', borderRadius: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <label style={{ fontWeight: 600, fontSize: 14 }}>{criterion.name}</label>
-                <span style={{ fontSize: 13, color: '#666' }}>Max: {criterion.maxScore} pts</span>
+            <div key={i} className="glass-card no-hover">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  {criterion.name}
+                </label>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Max: {criterion.maxScore} pts</span>
               </div>
 
-              {/* Score slider + number input together */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Score slider + number input */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <input
                   type="range"
                   min={0}
@@ -213,65 +248,91 @@ const EvaluateTeamPage = () => {
                   onChange={(e) => updateScore(i, e.target.value)}
                   style={{ flex: 1 }}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input
                     type="number"
                     min={0}
                     max={criterion.maxScore}
                     value={scores[i]?.score ?? 0}
                     onChange={(e) => updateScore(i, e.target.value)}
+                    className="form-input"
                     style={{
-                      width: 56, padding: '6px 8px', border: '1px solid #ccc',
-                      borderRadius: 6, fontSize: 15, fontWeight: 600,
+                      width: 60, padding: '6px 8px',
+                      fontSize: '0.95rem', fontWeight: 700,
                       textAlign: 'center',
                     }}
                   />
-                  <span style={{ fontSize: 13, color: '#999' }}>/ {criterion.maxScore}</span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>/ {criterion.maxScore}</span>
                 </div>
+              </div>
+
+              {/* Score bar visual */}
+              <div style={{
+                marginTop: 8, height: 4, borderRadius: 2,
+                background: 'var(--bg-muted)', overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${((scores[i]?.score ?? 0) / criterion.maxScore) * 100}%`,
+                  background: 'var(--gradient-primary)',
+                  borderRadius: 2,
+                  transition: 'width 0.2s ease',
+                }} />
               </div>
             </div>
           ))}
         </div>
 
         {/* Running total */}
-        <div style={{
+        <div className="glass-card no-hover" style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '14px 18px', background: '#EEF2FF', borderRadius: 8, marginBottom: 20,
+          padding: '16px 20px', marginBottom: 20,
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
         }}>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Total Score</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: '#4F46E5' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>Total Score</span>
+          <span className="score-big" style={{ color: 'var(--primary-light)' }}>
             {totalScore}
-            <span style={{ fontSize: 14, color: '#999', fontWeight: 400 }}> / {maxTotalScore}</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 400 }}> / {maxTotalScore}</span>
           </span>
         </div>
 
         {/* Remarks */}
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
-            Remarks <span style={{ fontWeight: 400, color: '#999' }}>(optional)</span>
+        <div className="form-group" style={{ marginBottom: 24 }}>
+          <label className="form-label">
+            Remarks <span>(optional)</span>
           </label>
           <textarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            placeholder="Any comments or feedback for the team..."
+            placeholder="Any comments or feedback for the team…"
             rows={3}
-            style={{
-              width: '100%', padding: '10px 12px', border: '1px solid #ccc',
-              borderRadius: 6, fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
-            }}
+            className="form-textarea"
           />
         </div>
 
-        <button type="submit" disabled={submitting} style={{ ...primaryBtn, width: '100%', padding: 14, fontSize: 15 }}>
-          {submitting ? 'Submitting...' : 'Submit Final Evaluation'}
+        <button type="submit" disabled={submitting} className="btn btn-primary btn-full" style={{ padding: '14px', fontSize: '0.95rem' }}>
+          {submitting ? (
+            <>
+              <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+              Submitting…
+            </>
+          ) : '⚖ Submit Final Evaluation'}
         </button>
       </form>
-    </div>
+
+      <ConfirmDialog
+        open={confirmSubmit}
+        title="Submit final evaluation?"
+        message="Scores and remarks cannot be edited after submission. Make sure everything is correct."
+        confirmLabel="Submit evaluation"
+        cancelLabel="Review scores"
+        variant="danger"
+        onConfirm={executeEvaluationSubmit}
+        onCancel={() => setConfirmSubmit(false)}
+      />
+    </Layout>
   );
 };
-
-const primaryBtn = { background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
-const backBtn    = { background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: 14, padding: 0 };
-const linkStyle  = { color: '#4F46E5', textDecoration: 'none', padding: '3px 10px', background: '#EEF2FF', borderRadius: 6, fontSize: 13 };
 
 export default EvaluateTeamPage;

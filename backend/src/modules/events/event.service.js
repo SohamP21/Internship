@@ -10,6 +10,8 @@ const VALID_TRANSITIONS = {
   completed:  [],
 };
 
+const calendarDay = (d) => new Date(d).toISOString().slice(0, 10);
+
 // ── Create event ──────────────────────────────────────────────
 export const createEvent = async (coordinatorId, body) => {
   const event = await Event.create({ ...body, coordinatorId });
@@ -35,6 +37,17 @@ export const getEventById = async (eventId) => {
   return event;
 };
 
+const DRAFT_UPDATABLE = new Set([
+  'title',
+  'description',
+  'domains',
+  'slots',
+  'rubric',
+  'registrationDeadline',
+  'eventStartDate',
+  'eventEndDate',
+]);
+
 // ── Update event (coordinator only, draft stage) ──────────────
 export const updateEvent = async (eventId, coordinatorId, body) => {
   const event = await Event.findOne({ _id: eventId, coordinatorId });
@@ -44,7 +57,32 @@ export const updateEvent = async (eventId, coordinatorId, body) => {
     throw new ApiError(400, 'Event can only be edited in draft status');
   }
 
-  Object.assign(event, body);
+  for (const key of DRAFT_UPDATABLE) {
+    if (body[key] !== undefined) event[key] = body[key];
+  }
+  await event.save();
+  return event;
+};
+
+// ── Extend registration deadline (while registrations are open) ─
+export const extendRegistrationDeadline = async (eventId, coordinatorId, registrationDeadline) => {
+  const event = await Event.findOne({ _id: eventId, coordinatorId });
+  if (!event) throw new ApiError(404, 'Event not found or access denied');
+
+  if (event.status !== 'open') {
+    throw new ApiError(
+      400,
+      'Registration deadline can only be extended while the event is open for registration'
+    );
+  }
+
+  const today = calendarDay(new Date());
+  const newDay = calendarDay(registrationDeadline);
+  if (newDay < today) {
+    throw new ApiError(400, 'New deadline must be today or a future date');
+  }
+
+  event.registrationDeadline = new Date(registrationDeadline);
   await event.save();
   return event;
 };

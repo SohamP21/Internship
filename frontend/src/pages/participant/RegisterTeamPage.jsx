@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getEventByIdApi } from '../../api/eventApi';
 import { registerTeamApi } from '../../api/registrationApi';
+import Layout from '../../components/Layout';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const emptyMember = () => ({ name: '', email: '', role: '' });
 
@@ -12,10 +14,10 @@ const RegisterTeamPage = () => {
   const [event, setEvent]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
 
-  // Form state
   const [teamName,    setTeamName]    = useState('');
   const [domains,     setDomains]     = useState([]);
   const [members,     setMembers]     = useState([emptyMember()]);
@@ -31,14 +33,12 @@ const RegisterTeamPage = () => {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  // ── Domain checkbox toggle ────────────────────────────────
   const toggleDomain = (d) => {
     setDomains((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
     );
   };
 
-  // ── Member helpers ────────────────────────────────────────
   const addMember = () => {
     if (members.length >= 6) return;
     setMembers((p) => [...p, emptyMember()]);
@@ -57,12 +57,9 @@ const RegisterTeamPage = () => {
     });
   };
 
-  // ── Submit ────────────────────────────────────────────────
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-
-    // Client-side validation
     if (!teamName.trim())  return setError('Team name is required');
     if (domains.length === 0) return setError('Select at least one domain');
     for (const m of members) {
@@ -70,8 +67,11 @@ const RegisterTeamPage = () => {
         return setError('All team members need a name and email');
       }
     }
+    setConfirmOpen(true);
+  };
 
-    // Build FormData — files + JSON fields together
+  const executeRegistration = async () => {
+    setConfirmOpen(false);
     const formData = new FormData();
     formData.append('teamName',   teamName);
     formData.append('domains',    JSON.stringify(domains));
@@ -93,42 +93,56 @@ const RegisterTeamPage = () => {
     }
   };
 
-  if (loading) return <p style={{ padding: 40 }}>Loading event...</p>;
-  if (!event)  return <p style={{ padding: 40, color: 'red' }}>{error}</p>;
+  if (loading) {
+    return (
+      <Layout maxWidth="narrow">
+        <div className="loading-wrapper">
+          <div className="spinner" />
+          <span className="loading-text">Loading event…</span>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!event) {
+    return (
+      <Layout maxWidth="narrow">
+        <div className="alert alert-danger">{error || 'Event not found'}</div>
+      </Layout>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 620, margin: '40px auto', padding: '0 1rem' }}>
-      <button onClick={() => navigate(-1)} style={backBtn}>← Back</button>
-      <h2 style={{ marginTop: 12 }}>Register for {event.title}</h2>
+    <Layout maxWidth="narrow">
+      <button onClick={() => navigate(-1)} className="back-btn">← Back</button>
+      <h2 className="gradient-text" style={{ marginBottom: 4 }}>Register for {event.title}</h2>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 28 }}>
+        Fill in your team details below
+      </p>
 
-      {error   && <p style={{ color: 'red',   marginBottom: 16 }}>{error}</p>}
-      {success && <p style={{ color: 'green', marginBottom: 16 }}>{success}</p>}
+      {error   && <div className="alert alert-danger" style={{ marginBottom: 18 }}>⚠ {error}</div>}
+      {success && <div className="alert alert-success" style={{ marginBottom: 18 }}>✓ {success}</div>}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* Team name */}
-        <div>
-          <label style={labelStyle}>Team Name *</label>
+        <div className="form-group">
+          <label className="form-label">Team Name *</label>
           <input value={teamName} onChange={(e) => setTeamName(e.target.value)}
-            placeholder="e.g. Team Falcon" style={inputStyle} />
+            placeholder="e.g. Team Falcon" className="form-input" />
         </div>
 
-        {/* Domain checkboxes — pulled from event */}
-        <div>
-          <label style={labelStyle}>Project Domain(s) * <span style={{ color: '#999', fontWeight: 400 }}>(select all that apply)</span></label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+        {/* Domain checkboxes */}
+        <div className="form-group">
+          <label className="form-label">Project Domain(s) * <span>(select all that apply)</span></label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
             {event.domains.map((d) => (
-              <label key={d} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
-                border: `1px solid ${domains.includes(d) ? '#4F46E5' : '#ddd'}`,
-                background: domains.includes(d) ? '#EEF2FF' : '#fff',
-                color: domains.includes(d) ? '#4F46E5' : '#555',
-                fontSize: 13, userSelect: 'none',
-              }}>
-                <input type="checkbox" checked={domains.includes(d)}
-                  onChange={() => toggleDomain(d)} style={{ display: 'none' }} />
-                {d}
+              <label key={d}
+                className={`chip-toggle ${domains.includes(d) ? 'active' : ''}`}
+                onClick={() => toggleDomain(d)}
+              >
+                <input type="checkbox" checked={domains.includes(d)} onChange={() => toggleDomain(d)} />
+                {domains.includes(d) ? '✓ ' : ''}{d}
               </label>
             ))}
           </div>
@@ -136,47 +150,44 @@ const RegisterTeamPage = () => {
 
         {/* Team members */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label style={labelStyle}>Team Members * <span style={{ color: '#999', fontWeight: 400 }}>(1–6)</span></label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <label className="form-label">Team Members * <span>(1–6)</span></label>
             {members.length < 6 && (
-              <button type="button" onClick={addMember} style={smallSecondaryBtn}>+ Add Member</button>
+              <button type="button" onClick={addMember} className="btn btn-secondary btn-sm">+ Add Member</button>
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {members.map((m, i) => (
-              <div key={i} style={{
-                padding: 14, border: '1px solid #e0e0e0',
-                borderRadius: 8, position: 'relative',
-              }}>
-                <p style={{ margin: '0 0 10px', fontWeight: 600, fontSize: 13, color: '#555' }}>
+              <div key={i} className="glass-card no-hover" style={{ position: 'relative' }}>
+                <p style={{ margin: '0 0 10px', fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Member {i + 1} {i === 0 ? '(Team Lead)' : ''}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <div style={{ flex: 2, minWidth: 140 }}>
-                    <label style={{ fontSize: 12, color: '#666' }}>Full Name *</label>
+                  <div className="form-group" style={{ flex: 2, minWidth: 140 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Full Name *</label>
                     <input value={m.name}
                       onChange={(e) => updateMember(i, 'name', e.target.value)}
-                      placeholder="Jane Doe" style={inputStyle} />
+                      placeholder="Jane Doe" className="form-input" />
                   </div>
-                  <div style={{ flex: 2, minWidth: 140 }}>
-                    <label style={{ fontSize: 12, color: '#666' }}>Email *</label>
+                  <div className="form-group" style={{ flex: 2, minWidth: 140 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Email *</label>
                     <input value={m.email} type="email"
                       onChange={(e) => updateMember(i, 'email', e.target.value)}
-                      placeholder="jane@college.edu" style={inputStyle} />
+                      placeholder="jane@college.edu" className="form-input" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 100 }}>
-                    <label style={{ fontSize: 12, color: '#666' }}>Role</label>
+                  <div className="form-group" style={{ flex: 1, minWidth: 100 }}>
+                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Role</label>
                     <input value={m.role}
                       onChange={(e) => updateMember(i, 'role', e.target.value)}
-                      placeholder="e.g. ML Dev" style={inputStyle} />
+                      placeholder="e.g. ML Dev" className="form-input" />
                   </div>
                 </div>
                 {members.length > 1 && (
                   <button type="button" onClick={() => removeMember(i)} style={{
                     position: 'absolute', top: 12, right: 12,
-                    background: 'none', border: 'none', color: '#999',
-                    fontSize: 18, cursor: 'pointer', lineHeight: 1,
+                    background: 'none', border: 'none', color: 'var(--text-muted)',
+                    fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1,
                   }}>×</button>
                 )}
               </div>
@@ -185,52 +196,64 @@ const RegisterTeamPage = () => {
         </div>
 
         {/* File uploads */}
-        <div>
-          <label style={labelStyle}>Project Files</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-            <div>
-              <label style={{ fontSize: 13, color: '#555' }}>PPT / Presentation</label>
-              <input type="file" accept=".ppt,.pptx,.pdf"
-                onChange={(e) => setPptFile(e.target.files[0])}
-                style={{ display: 'block', marginTop: 4, fontSize: 13 }} />
-              <span style={{ fontSize: 12, color: '#999' }}>PDF, PPT, PPTX — max 20MB</span>
+        <div className="form-group">
+          <label className="form-label">Project Files</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 500 }}>PPT / Presentation</label>
+              <div className="file-input-wrapper">
+                <input type="file" accept=".ppt,.pptx,.pdf"
+                  onChange={(e) => setPptFile(e.target.files[0])} />
+              </div>
+              <span className="form-hint">PDF, PPT, PPTX — max 20MB</span>
             </div>
-            <div>
-              <label style={{ fontSize: 13, color: '#555' }}>Abstract / Report</label>
-              <input type="file" accept=".pdf,.doc,.docx"
-                onChange={(e) => setAbstractFile(e.target.files[0])}
-                style={{ display: 'block', marginTop: 4, fontSize: 13 }} />
-              <span style={{ fontSize: 12, color: '#999' }}>PDF, DOC, DOCX — max 20MB</span>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 500 }}>Abstract / Report</label>
+              <div className="file-input-wrapper">
+                <input type="file" accept=".pdf,.doc,.docx"
+                  onChange={(e) => setAbstractFile(e.target.files[0])} />
+              </div>
+              <span className="form-hint">PDF, DOC, DOCX — max 20MB</span>
             </div>
           </div>
         </div>
 
         {/* Links */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={labelStyle}>GitHub Repository Link</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="form-group">
+            <label className="form-label">GitHub Repository Link</label>
             <input value={githubLink} onChange={(e) => setGithubLink(e.target.value)}
-              placeholder="https://github.com/yourteam/project" style={inputStyle} />
+              placeholder="https://github.com/yourteam/project" className="form-input" />
           </div>
-          <div>
-            <label style={labelStyle}>Google Drive Video Link</label>
+          <div className="form-group">
+            <label className="form-label">Google Drive Video Link</label>
             <input value={driveLink} onChange={(e) => setDriveLink(e.target.value)}
-              placeholder="https://drive.google.com/..." style={inputStyle} />
+              placeholder="https://drive.google.com/..." className="form-input" />
           </div>
         </div>
 
-        <button type="submit" disabled={submitting} style={primaryBtn}>
-          {submitting ? 'Submitting...' : 'Submit Registration'}
+        <button type="submit" disabled={submitting} className="btn btn-primary btn-full" style={{ marginTop: 8 }}>
+          {submitting ? (
+            <>
+              <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+              Submitting…
+            </>
+          ) : '✦ Submit Registration'}
         </button>
       </form>
-    </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Submit team registration?"
+        message={`Register "${teamName.trim() || 'your team'}" for this event? You can only register once per event as team lead. Double-check domains and member emails.`}
+        confirmLabel="Submit registration"
+        cancelLabel="Review form"
+        variant="primary"
+        onConfirm={executeRegistration}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </Layout>
   );
 };
-
-const labelStyle      = { display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 2 };
-const inputStyle      = { display: 'block', width: '100%', padding: '9px 12px', marginTop: 4, border: '1px solid #ccc', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' };
-const primaryBtn      = { padding: '12px', background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6, fontSize: 15, cursor: 'pointer' };
-const smallSecondaryBtn = { padding: '6px 12px', background: 'transparent', color: '#4F46E5', border: '1px solid #4F46E5', borderRadius: 6, fontSize: 13, cursor: 'pointer' };
-const backBtn         = { background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: 14, padding: 0 };
 
 export default RegisterTeamPage;

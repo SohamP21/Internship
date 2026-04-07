@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { getAllEventsApi } from '../../api/eventApi';
 import { getMyProfilesApi } from '../../api/judgeApi';
 import useAuthStore from '../../store/authStore';
+import Layout from '../../components/Layout';
 
 const JudgeEventListPage = () => {
   const navigate = useNavigate();
-  const logout   = useAuthStore((s) => s.logout);
   const user     = useAuthStore((s) => s.user);
   const [events,      setEvents]      = useState([]);
   const [signedUpIds, setSignedUpIds] = useState(new Set());
@@ -26,59 +26,78 @@ const JudgeEventListPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p style={{ padding: 40 }}>Loading events...</p>;
-  if (error)   return <p style={{ padding: 40, color: 'red' }}>{error}</p>;
+  if (loading) {
+    return (
+      <Layout maxWidth="medium">
+        <div className="loading-wrapper">
+          <div className="spinner" />
+          <span className="loading-text">Loading events…</span>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout maxWidth="medium">
+        <div className="alert alert-danger">{error}</div>
+      </Layout>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Events to Judge</h2>
-          <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>Welcome, {user?.name}</p>
+    <Layout maxWidth="medium">
+      <div className="page-header">
+        <div className="page-header-info">
+          <h2 className="gradient-text">Events to Judge</h2>
+          <p>Welcome, {user?.name} — browse and sign up for events</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => navigate('/judge/dashboard')} style={secondaryBtn}>My Dashboard</button>
-          <button onClick={() => { logout(); navigate('/login'); }} style={secondaryBtn}>Logout</button>
+        <div className="page-header-actions">
+          <button onClick={() => navigate('/judge/dashboard')} className="btn btn-secondary">
+            My Dashboard
+          </button>
         </div>
       </div>
 
       {events.length === 0 && (
-        <p style={{ color: '#999', textAlign: 'center', marginTop: 60 }}>
-          No events available to judge right now.
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-icon">🎪</div>
+          <h3>No events available</h3>
+          <p>No events available to judge right now.</p>
+        </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {events.map((event) => {
           const alreadySignedUp = signedUpIds.has(event._id);
           return (
-            <div key={event._id} style={{
-              border: '1px solid #e0e0e0', borderRadius: 10, padding: 20,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div key={event._id} className="glass-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ margin: '0 0 6px' }}>{event.title}</h3>
-                  <p style={{ margin: '0 0 10px', color: '#666', fontSize: 14 }}>
-                    {event.description}
-                  </p>
+                  {event.description && (
+                    <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {event.description}
+                    </p>
+                  )}
 
                   {/* Domains */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                     {event.domains.map((d) => (
-                      <span key={d} style={{
-                        padding: '3px 10px', background: '#EEF2FF',
-                        color: '#4F46E5', borderRadius: 20, fontSize: 12,
-                      }}>{d}</span>
+                      <span key={d} className="domain-tag">{d}</span>
                     ))}
                   </div>
 
                   {/* Slot capacities */}
-                  <div style={{ marginTop: 10, fontSize: 13, color: '#666' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 14 }}>
                     {event.slots?.map((s) => (
-                      <span key={s.slotNumber} style={{ marginRight: 14 }}>
-                        Slot {s.slotNumber}: {new Date(s.date).toLocaleDateString()} · {s.startTime}
-                        &nbsp;
-                        <span style={{ color: s.judgeCount >= 25 ? '#A32D2D' : '#3B6D11', fontWeight: 600 }}>
+                      <span key={s.slotNumber}>
+                        <strong>Slot {s.slotNumber}:</strong>{' '}
+                        {new Date(s.date).toLocaleDateString()} · {s.startTime}–{s.endTime}{' '}
+                        <span style={{
+                          color: s.judgeCount >= 25 ? 'var(--danger)' : 'var(--success)',
+                          fontWeight: 600,
+                        }}>
                           ({s.judgeCount}/25)
                         </span>
                       </span>
@@ -89,20 +108,18 @@ const JudgeEventListPage = () => {
                 {/* Action button */}
                 <div style={{ marginLeft: 16, flexShrink: 0 }}>
                   {alreadySignedUp ? (
-                    <span style={{
-                      fontSize: 13, color: '#3B6D11', background: '#EAF3DE',
-                      padding: '6px 14px', borderRadius: 20, fontWeight: 600,
-                    }}>
+                    <span className="badge badge-success" style={{ padding: '6px 14px' }}>
                       ✓ Signed Up
                     </span>
                   ) : event.status === 'open' ? (
                     <button
                       onClick={() => navigate(`/judge/events/${event._id}/onboard`)}
-                      style={primaryBtn}>
+                      className="btn btn-primary btn-sm"
+                    >
                       Sign Up to Judge
                     </button>
                   ) : (
-                    <span style={{ fontSize: 13, color: '#999' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       Registration closed
                     </span>
                   )}
@@ -112,11 +129,8 @@ const JudgeEventListPage = () => {
           );
         })}
       </div>
-    </div>
+    </Layout>
   );
 };
-
-const primaryBtn   = { padding: '9px 18px', background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' };
-const secondaryBtn = { padding: '9px 16px', background: 'transparent', color: '#4F46E5', border: '1px solid #4F46E5', borderRadius: 6, fontSize: 14, cursor: 'pointer' };
 
 export default JudgeEventListPage;

@@ -10,6 +10,14 @@ export const registerTeam = async ({ eventId, teamLeadId, body, files }) => {
   if (!event)                   throw new ApiError(404, 'Event not found');
   if (event.status !== 'open')  throw new ApiError(400, 'Event is not open for registration');
 
+  if (event.registrationDeadline) {
+    const today = new Date().toISOString().slice(0, 10);
+    const deadlineDay = new Date(event.registrationDeadline).toISOString().slice(0, 10);
+    if (today > deadlineDay) {
+      throw new ApiError(400, 'Registration deadline has passed. Ask the coordinator to extend it.');
+    }
+  }
+
   // 2. One registration per team lead per event (compound index handles DB level,
   //    but we give a cleaner error message here)
   const existing = await Registration.findOne({ teamLeadId, eventId });

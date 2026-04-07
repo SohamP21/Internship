@@ -1,0 +1,58 @@
+# Node.js
+node_modules/
+.env
+.env.*
+*.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build output
+/dist/
+/build/
+
+# Vite
+frontend/.vite/
+
+# VS Code
+.vscode/
+
+# Uploads and generated files
+uploads/
+
+# Misc
+*.local
+*.cache
+*.tmp
+
+# Dependency directories
+backend/node_modules/
+frontend/node_modules/
+
+# Test output
+backend/test_output.txt
+
+# Process info
+backend/process_info.txt
+
+# Ignore PDF uploads
+backend/uploads/*.pdf
+
+# Ignore coverage reports
+coverage/
+
+# Ignore IDE files
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

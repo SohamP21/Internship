@@ -19,7 +19,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Security & Parsing ────────────────────────────────────────
 app.use(helmet());
-app.use(cors({ origin: ENV.CLIENT_URL, credentials: true }));
+// In development, reflect any browser origin so localhost / 127.0.0.1 / any Vite port work with credentials.
+app.use(
+  cors({
+    origin: ENV.IS_PRODUCTION ? ENV.CLIENT_URL : true,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(morgan('dev'));
 

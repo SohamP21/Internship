@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRegistrationsByEventApi } from '../../api/registrationApi';
+import Layout from '../../components/Layout';
 
 const ViewRegistrationsPage = () => {
   const { eventId } = useParams();
@@ -16,32 +17,50 @@ const ViewRegistrationsPage = () => {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  if (loading) return <p style={{ padding: 40 }}>Loading registrations...</p>;
+  if (loading) {
+    return (
+      <Layout maxWidth="medium">
+        <div className="loading-wrapper">
+          <div className="spinner" />
+          <span className="loading-text">Loading registrations…</span>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 1rem' }}>
-      <button onClick={() => navigate('/coordinator/dashboard')} style={backBtn}>← Back to Dashboard</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 28px' }}>
-        <h2 style={{ margin: 0 }}>Registrations ({registrations.length})</h2>
+    <Layout maxWidth="medium">
+      <button onClick={() => navigate('/coordinator/dashboard')} className="back-btn">
+        ← Back to Dashboard
+      </button>
+      <div className="page-header" style={{ marginTop: 8 }}>
+        <div className="page-header-info">
+          <h2 className="gradient-text">Registrations</h2>
+          <p>{registrations.length} team{registrations.length !== 1 ? 's' : ''} registered</p>
+        </div>
       </div>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>{error}</div>}
 
       {registrations.length === 0 && (
-        <p style={{ color: '#999', textAlign: 'center', marginTop: 60 }}>No teams have registered yet.</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">📋</div>
+          <h3>No registrations yet</h3>
+          <p>Teams will appear here once they register for this event</p>
+        </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {registrations.map((reg) => (
-          <div key={reg._id} style={{ border: '1px solid #e0e0e0', borderRadius: 10, padding: 20 }}>
+          <div key={reg._id} className="glass-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h3 style={{ margin: '0 0 4px' }}>{reg.teamName}</h3>
-                <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
+                <h3 style={{ marginBottom: 4 }}>{reg.teamName}</h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Lead: {reg.teamLeadId?.name} ({reg.teamLeadId?.email})
                 </p>
               </div>
-              <span style={{ fontSize: 12, color: '#999' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 {new Date(reg.createdAt).toLocaleDateString()}
               </span>
             </div>
@@ -49,54 +68,49 @@ const ViewRegistrationsPage = () => {
             {/* Domains */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
               {reg.domains.map((d) => (
-                <span key={d} style={{ padding: '3px 10px', background: '#EEF2FF', color: '#4F46E5', borderRadius: 20, fontSize: 12 }}>{d}</span>
+                <span key={d} className="domain-tag">{d}</span>
               ))}
             </div>
 
             {/* Members table */}
-            <div style={{ marginTop: 14 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 8px', color: '#555' }}>
-                Team Members ({reg.members.length})
-              </p>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#f9f9f9' }}>
-                    <th style={th}>#</th>
-                    <th style={th}>Name</th>
-                    <th style={th}>Email</th>
-                    <th style={th}>Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reg.members.map((m, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid #f0f0f0' }}>
-                      <td style={td}>{i + 1}</td>
-                      <td style={td}>{m.name}</td>
-                      <td style={td}>{m.email}</td>
-                      <td style={td}>{m.role || '—'}</td>
+            <div style={{ marginTop: 16 }}>
+              <div className="section-label">Team Members ({reg.members.length})</div>
+              <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-sm)' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {reg.members.map((m, i) => (
+                      <tr key={i}>
+                        <td>{i + 1}</td>
+                        <td style={{ color: 'var(--text-primary)' }}>{m.name}</td>
+                        <td>{m.email}</td>
+                        <td>{m.role || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Deliverables */}
-            <div style={{ marginTop: 12, display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
-              {reg.pptUrl      && <a href={reg.pptUrl}      target="_blank" rel="noreferrer" style={linkStyle}>📄 PPT</a>}
-              {reg.abstractUrl && <a href={reg.abstractUrl}  target="_blank" rel="noreferrer" style={linkStyle}>📝 Abstract</a>}
-              {reg.githubLink  && <a href={reg.githubLink}   target="_blank" rel="noreferrer" style={linkStyle}>🔗 GitHub</a>}
-              {reg.driveLink   && <a href={reg.driveLink}    target="_blank" rel="noreferrer" style={linkStyle}>🎥 Drive</a>}
+            <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {reg.pptUrl      && <a href={reg.pptUrl}      target="_blank" rel="noreferrer" className="deliverable-link">📄 PPT</a>}
+              {reg.abstractUrl && <a href={reg.abstractUrl}  target="_blank" rel="noreferrer" className="deliverable-link">📝 Abstract</a>}
+              {reg.githubLink  && <a href={reg.githubLink}   target="_blank" rel="noreferrer" className="deliverable-link">🔗 GitHub</a>}
+              {reg.driveLink   && <a href={reg.driveLink}    target="_blank" rel="noreferrer" className="deliverable-link">🎥 Drive</a>}
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </Layout>
   );
 };
-
-const backBtn  = { background: 'none', border: 'none', color: '#4F46E5', cursor: 'pointer', fontSize: 14, padding: 0 };
-const linkStyle = { color: '#4F46E5', textDecoration: 'none', padding: '4px 10px', background: '#EEF2FF', borderRadius: 6 };
-const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: '#555', borderBottom: '1px solid #eee' };
-const td = { padding: '8px 10px', color: '#333' };
 
 export default ViewRegistrationsPage;

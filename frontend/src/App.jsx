@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
-import { getMeApi } from './api/authApi';
+import { getMeApi, unwrapApiData } from './api/authApi';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Auth
+// Auth & marketing
+import LandingPage  from './pages/LandingPage';
 import LoginPage    from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 
@@ -27,22 +28,26 @@ import AssignTeamsPage from './pages/coordinator/AssignTeamsPage';
 import MyAssignmentsPage  from './pages/judge/MyAssignmentsPage';
 import EvaluateTeamPage   from './pages/judge/EvaluateTeamPage';
 import ResultsPage        from './pages/coordinator/ResultsPage';
+import ProfilePage        from './pages/ProfilePage';
 
 const App = () => {
-  const { token, setUser } = useAuthStore();
+  const token = useAuthStore((s) => s.token);
 
   useEffect(() => {
-    if (token) {
-      getMeApi()
-        .then((res) => setUser(res.data.data))
-        .catch(() => {});
-    }
-  }, []);
+    if (!token) return;
+    getMeApi()
+      .then((res) => {
+        const user = unwrapApiData(res);
+        if (user) useAuthStore.getState().setUser(user);
+      })
+      .catch(() => useAuthStore.getState().logout());
+  }, [token]);
 
   return (
     <BrowserRouter>
       <Routes>
         {/* Public */}
+        <Route path="/"         element={<LandingPage />} />
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
@@ -122,7 +127,14 @@ const App = () => {
           </ProtectedRoute>
         }/>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Shared profile */}
+        <Route path="/profile" element={
+          <ProtectedRoute allowedRoles={['coordinator', 'participant', 'judge']}>
+            <ProfilePage />
+          </ProtectedRoute>
+        }/>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
