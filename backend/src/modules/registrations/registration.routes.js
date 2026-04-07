@@ -6,8 +6,17 @@ import authenticate from '../../middleware/authenticate.js';
 import authorize    from '../../middleware/authorize.js';
 
 // ── Multer config ─────────────────────────────────────────────
+const hasCloudinaryCreds =
+  !!process.env.CLOUDINARY_CLOUD_NAME &&
+  !!process.env.CLOUDINARY_API_KEY &&
+  !!process.env.CLOUDINARY_API_SECRET;
+
+const useCloudinaryStorage =
+  process.env.STORAGE_DRIVER === 'cloudinary' ||
+  (process.env.STORAGE_DRIVER !== 'local' && hasCloudinaryCreds);
+
 const storage =
-  process.env.STORAGE_DRIVER === 'cloudinary'
+  useCloudinaryStorage
     ? multer.memoryStorage()
     : multer.diskStorage({
         destination: (req, file, cb) => cb(null, 'uploads/'),
