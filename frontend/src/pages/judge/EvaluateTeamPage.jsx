@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getJudgeAssignmentsApi, submitEvaluationApi, getMyEvaluationApi } from '../../api/evaluationApi';
 import Layout from '../../components/Layout';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import FilePreviewModal from '../../components/FilePreviewModal';
 
 const EvaluateTeamPage = () => {
   const { eventId, assignmentId } = useParams();
@@ -17,6 +18,7 @@ const EvaluateTeamPage = () => {
   const [submitting,  setSubmitting]  = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [error,       setError]       = useState('');
+  const [preview, setPreview] = useState({ open: false, title: '', fileUrl: '' });
 
   useEffect(() => {
     const load = async () => {
@@ -215,8 +217,8 @@ const EvaluateTeamPage = () => {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {reg?.pptUrl      && <a href={reg.pptUrl}      target="_blank" rel="noreferrer" className="deliverable-link">📄 PPT</a>}
-          {reg?.abstractUrl && <a href={reg.abstractUrl}  target="_blank" rel="noreferrer" className="deliverable-link">📝 Abstract</a>}
+          {reg?.pptUrl      && <button type="button" onClick={() => setPreview({ open: true, title: `${reg?.teamName || 'Team'} - PPT`, fileUrl: reg.pptUrl })} className="deliverable-link">📄 PPT</button>}
+          {reg?.abstractUrl && <button type="button" onClick={() => setPreview({ open: true, title: `${reg?.teamName || 'Team'} - Abstract`, fileUrl: reg.abstractUrl })} className="deliverable-link">📝 Abstract</button>}
           {reg?.githubLink  && <a href={reg.githubLink}   target="_blank" rel="noreferrer" className="deliverable-link">🔗 GitHub</a>}
           {reg?.driveLink   && <a href={reg.driveLink}    target="_blank" rel="noreferrer" className="deliverable-link">🎥 Drive</a>}
         </div>
@@ -330,6 +332,12 @@ const EvaluateTeamPage = () => {
         variant="danger"
         onConfirm={executeEvaluationSubmit}
         onCancel={() => setConfirmSubmit(false)}
+      />
+      <FilePreviewModal
+        open={preview.open}
+        title={preview.title}
+        fileUrl={preview.fileUrl}
+        onClose={() => setPreview({ open: false, title: '', fileUrl: '' })}
       />
     </Layout>
   );

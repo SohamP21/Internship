@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getJudgeAssignmentsApi } from '../../api/evaluationApi';
 import Layout from '../../components/Layout';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import FilePreviewModal from '../../components/FilePreviewModal';
 
 const MyAssignmentsPage = () => {
   const { eventId } = useParams();
@@ -16,6 +17,7 @@ const MyAssignmentsPage = () => {
     assignmentId: null,
     teamName: '',
   });
+  const [preview, setPreview] = useState({ open: false, title: '', fileUrl: '' });
 
   useEffect(() => {
     getJudgeAssignmentsApi(eventId)
@@ -104,8 +106,8 @@ const MyAssignmentsPage = () => {
 
                   {/* Deliverable links */}
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {reg?.pptUrl     && <a href={reg.pptUrl}     target="_blank" rel="noreferrer" className="deliverable-link">📄 PPT</a>}
-                    {reg?.abstractUrl && <a href={reg.abstractUrl} target="_blank" rel="noreferrer" className="deliverable-link">📝 Abstract</a>}
+                    {reg?.pptUrl      && <button type="button" onClick={() => setPreview({ open: true, title: `${reg?.teamName || 'Team'} - PPT`, fileUrl: reg.pptUrl })} className="deliverable-link">📄 PPT</button>}
+                    {reg?.abstractUrl && <button type="button" onClick={() => setPreview({ open: true, title: `${reg?.teamName || 'Team'} - Abstract`, fileUrl: reg.abstractUrl })} className="deliverable-link">📝 Abstract</button>}
                     {reg?.githubLink && <a href={reg.githubLink}  target="_blank" rel="noreferrer" className="deliverable-link">🔗 GitHub</a>}
                     {reg?.driveLink  && <a href={reg.driveLink}   target="_blank" rel="noreferrer" className="deliverable-link">🎥 Drive</a>}
                   </div>
@@ -157,6 +159,12 @@ const MyAssignmentsPage = () => {
         onCancel={() =>
           setEvaluateDialog({ open: false, assignmentId: null, teamName: '' })
         }
+      />
+      <FilePreviewModal
+        open={preview.open}
+        title={preview.title}
+        fileUrl={preview.fileUrl}
+        onClose={() => setPreview({ open: false, title: '', fileUrl: '' })}
       />
     </Layout>
   );

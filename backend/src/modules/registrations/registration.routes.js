@@ -6,13 +6,16 @@ import authenticate from '../../middleware/authenticate.js';
 import authorize    from '../../middleware/authorize.js';
 
 // ── Multer config ─────────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename:    (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
+const storage =
+  process.env.STORAGE_DRIVER === 'cloudinary'
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination: (req, file, cb) => cb(null, 'uploads/'),
+        filename: (req, file, cb) => {
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          cb(null, `${unique}${path.extname(file.originalname)}`);
+        },
+      });
 
 const fileFilter = (req, file, cb) => {
   const allowed = ['.pdf', '.ppt', '.pptx', '.doc', '.docx'];
