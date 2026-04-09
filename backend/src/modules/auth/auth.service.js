@@ -15,10 +15,6 @@ export const registerUser = async ({ name, email, password, role, judgeAccessCod
     if (!judgeAccessCode || judgeAccessCode !== ENV.JUDGE_ACCESS_CODE) {
       throw new ApiError(403, 'Invalid judge access code');
     }
-    const existingJudge = await User.findOne({ role: 'judge' });
-    if (existingJudge) {
-      throw new ApiError(409, 'Judge account already exists. Only one judge is allowed.');
-    }
   }
 
   await User.create({ name, email, password, role });
