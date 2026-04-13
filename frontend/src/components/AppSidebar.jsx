@@ -20,6 +20,7 @@ import {
   PieChart,
   ListTodo,
   BarChart3,
+  Clock,
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useWorkspace } from '../context/WorkspaceContext';
