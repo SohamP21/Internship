@@ -1,24 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getAllEventsApi } from '../../api/eventApi';
 import { getMyRegistrationsApi } from '../../api/registrationApi';
 import useAuthStore from '../../store/authStore';
 import Layout from '../../components/Layout';
+import PageShell from '../../components/ui/PageShell';
+import HeroBanner from '../../components/ui/HeroBanner';
+import EventCard from '../../components/ui/EventCard';
+import { staggerContainer, staggerItem } from '../../lib/motion';
 
-const BADGE_CLASS = {
-  draft:     'badge-draft',
-  open:      'badge-open',
-  assigning: 'badge-assigning',
-  judging:   'badge-judging',
-  completed: 'badge-completed',
+const attendeeTotal = (event) => {
+  const slots = event.slots || [];
+  let n = 0;
+  for (const s of slots) {
+    n += Number(s.judgeCount) || 0;
+  }
+  return n;
+};
+
+const formatShort = (d) => {
+  if (!d) return null;
+  try {
+    return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return null;
+  }
 };
 
 const ParticipantDashboard = () => {
   const navigate = useNavigate();
-  const user     = useAuthStore((s) => s.user);
-  const [events,         setEvents]         = useState([]);
-  const [registeredIds,  setRegisteredIds]  = useState(new Set());
-  const [loading,        setLoading]        = useState(true);
+  const user = useAuthStore((s) => s.user);
+  const [events, setEvents] = useState([]);
+  const [registeredIds, setRegisteredIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [timeKey, setTimeKey] = useState(0);
 
   useEffect(() => {
     Promise.all([getAllEventsApi(), getMyRegistrationsApi()])
@@ -30,84 +47,172 @@ const ParticipantDashboard = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => setTimeKey((k) => k + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const now = Date.now();
+    return events.filter((e) => {
+      if (filter === 'all') return true;
+      if (filter === 'open') return e.status === 'open';
+      if (filter === 'upcoming') {
+        if (e.status === 'draft') return true;
+        if (e.status === 'open' && e.eventStartDate) {
+          return new Date(e.eventStartDate).getTime() > now;
+        }
+        return false;
+      }
+      if (filter === 'closed') {
+        return e.status === 'assigning' || e.status === 'judging' || e.status === 'completed';
+      }
+      return true;
+    });
+  }, [events, filter, timeKey]);
+
   if (loading) {
     return (
-      <Layout maxWidth="medium">
-        <div className="loading-wrapper">
-          <div className="spinner" />
-          <span className="loading-text">Loading events…</span>
+      <Layout maxWidth="wide" viewport="command">
+        <div className="participant-cmd-root">
+          <div className="loading-wrapper loading-wrapper--embed">
+            <div className="spinner" />
+            <span className="loading-text">Loading events…</span>
+          </div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout maxWidth="medium">
-      <div className="page-header">
-        <div className="page-header-info">
-          <h2 className="gradient-text">Available Events</h2>
-          <p>Welcome back, {user?.name} 👋</p>
-        </div>
-        <div className="page-header-actions">
-          <button onClick={() => navigate('/participant/my-registrations')} className="btn btn-secondary">
-            My Registrations
-          </button>
-        </div>
-      </div>
+    <Layout maxWidth="wide" viewport="command">
+      <PageShell>
+        <div className="participant-cmd-root">
+          <HeroBanner
+            greeting={`Hi, ${user?.name?.split(' ')[0] || 'there'}`}
+            subtitle="Browse open competitions, register your team, and track deadlines."
+          />
 
-      {events.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">🎪</div>
-          <h3>No events available</h3>
-          <p>No open events at the moment. Check back later!</p>
-        </div>
-      )}
-
-      <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {events.map((event) => {
-          const alreadyRegistered = registeredIds.has(event._id);
-          return (
-            <div key={event._id} className="glass-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: '0 0 6px' }}>{event.title}</h3>
-                  {event.description && (
-                    <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      {event.description}
-                    </p>
-                  )}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                    {event.domains.map((d) => (
-                      <span key={d} className="domain-tag">{d}</span>
-                    ))}
-                  </div>
-                  <span className={`badge ${BADGE_CLASS[event.status] || 'badge-draft'}`}>
-                    {event.status?.toUpperCase()}
-                  </span>
-                </div>
-                <div style={{ marginLeft: 16, flexShrink: 0 }}>
-                  {alreadyRegistered ? (
-                    <span className="badge badge-success" style={{ padding: '6px 14px' }}>
-                      ✓ Registered
-                    </span>
-                  ) : event.status === 'open' ? (
-                    <button
-                      onClick={() => navigate(`/participant/events/${event._id}/register`)}
-                      className="btn btn-primary btn-sm"
-                    >
-                      Register Team
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      {event.status === 'completed' ? 'Event ended' : 'Registration closed'}
-                    </span>
-                  )}
-                </div>
-              </div>
+          <div className="coop-cmd-top ds-mt-24">
+            <div>
+              <h1 className="coop-cmd-title gradient-text">Browse events</h1>
+              <p className="coop-cmd-sub">Welcome back, {user?.name}</p>
             </div>
-          );
-        })}
-      </div>
+            <button
+              type="button"
+              onClick={() => navigate('/participant/my-registrations')}
+              className="btn btn-secondary btn-sm"
+            >
+              My Registrations
+            </button>
+          </div>
+
+          <div className="participant-filter-row" role="tablist" aria-label="Filter events">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'open', label: 'Open' },
+              { id: 'upcoming', label: 'Upcoming' },
+              { id: 'closed', label: 'Closed' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.id}
+                className={`filter-pill ${filter === f.id ? 'active' : ''}`}
+                onClick={() => setFilter(f.id)}
+              >
+                {filter === f.id ? (
+                  <motion.span
+                    className="filter-pill-bg"
+                    layoutId="participantFilterPill"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : null}
+                <span className="filter-pill-label">{f.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {events.length === 0 && (
+            <div className="glass-card no-hover empty-state empty-state-compact">
+              <div className="empty-state-icon" aria-hidden>
+                —
+              </div>
+              <h3>No events available</h3>
+              <p>No events at the moment. Check back later.</p>
+            </div>
+          )}
+
+          {events.length > 0 && filtered.length === 0 && (
+            <div className="glass-card no-hover coop-panel">
+              <p className="coop-cmd-sub">No events match this filter.</p>
+            </div>
+          )}
+
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={filter}
+              className="ds-events-grid"
+              variants={staggerContainer}
+              initial={false}
+              animate="visible"
+            >
+              {filtered.map((event) => {
+                const alreadyRegistered = registeredIds.has(event._id);
+                const start = formatShort(event.eventStartDate);
+                const end = formatShort(event.eventEndDate);
+                const deadline = formatShort(event.registrationDeadline);
+                const metaSegments = [];
+                if (start && end) metaSegments.push(`${start} – ${end}`);
+                else if (start || end) metaSegments.push(start || end);
+                if (deadline) metaSegments.push(`Reg. deadline ${deadline}`);
+                metaSegments.push(`${attendeeTotal(event)} slot capacity`);
+
+                let actionsEl = null;
+                if (alreadyRegistered) {
+                  actionsEl = (
+                    <span className="badge badge-success" style={{ alignSelf: 'center' }}>
+                      Registered
+                    </span>
+                  );
+                } else if (event.status === 'open') {
+                  actionsEl = null;
+                } else {
+                  actionsEl = (
+                    <span className="coop-cmd-sub" style={{ alignSelf: 'center' }}>
+                      {event.status === 'completed' ? 'Ended' : 'Unavailable'}
+                    </span>
+                  );
+                }
+
+                const primaryAction =
+                  !alreadyRegistered && event.status === 'open'
+                    ? {
+                        label: 'Register',
+                        onClick: () => navigate(`/participant/events/${event._id}/register`),
+                      }
+                    : null;
+
+                return (
+                  <motion.div key={event._id} variants={staggerItem}>
+                    <EventCard
+                      title={event.title}
+                      status={event.status}
+                      category={event.category}
+                      tags={event.domains || []}
+                      maxTags={3}
+                      metadataLine={metaSegments.join('  ·  ')}
+                      primaryAction={primaryAction}
+                      actions={actionsEl}
+                    />
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </PageShell>
     </Layout>
   );
 };

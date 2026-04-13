@@ -40,9 +40,28 @@ export const assignTeam = async ({ eventId, registrationId, judgeId, coordinator
     registrationId,
     judgeId,
     assignedBy: coordinatorId,
+    roomNo: '',
   });
 
   return assignment;
+};
+
+/** Set the same room label on all assignments for this team (coordinator). */
+export const setRoomForRegistration = async ({ eventId, registrationId, roomNo, coordinatorId }) => {
+  const event = await Event.findOne({ _id: eventId, coordinatorId });
+  if (!event) throw new ApiError(403, 'Access denied');
+
+  if (event.status !== 'assigning') {
+    throw new ApiError(400, 'Room can only be set while the event is in assigning status');
+  }
+
+  const registration = await Registration.findOne({ _id: registrationId, eventId });
+  if (!registration) throw new ApiError(404, 'Registration not found for this event');
+
+  const value = roomNo != null ? String(roomNo).trim() : '';
+  await Assignment.updateMany({ eventId, registrationId }, { $set: { roomNo: value } });
+
+  return { message: 'Room updated', roomNo: value };
 };
 
 // ── Remove an assignment ──────────────────────────────────────
@@ -86,6 +105,7 @@ export const getAssignmentBoard = async ({ eventId, coordinatorId }) => {
 
   // Build a map: registrationId → [judgeIds already assigned]
   const assignmentMap = {};
+  const roomByRegistration = {};
   for (const a of assignments) {
     const key = a.registrationId.toString();
     if (!assignmentMap[key]) assignmentMap[key] = [];
@@ -93,6 +113,9 @@ export const getAssignmentBoard = async ({ eventId, coordinatorId }) => {
       assignmentId: a._id,
       judgeId:      a.judgeId.toString(),
     });
+    if (a.roomNo && String(a.roomNo).trim()) {
+      roomByRegistration[key] = String(a.roomNo).trim();
+    }
   }
 
   return {
@@ -100,6 +123,7 @@ export const getAssignmentBoard = async ({ eventId, coordinatorId }) => {
     registrations,
     judgeProfiles,
     assignmentMap,
+    roomByRegistration,
   };
 };
 

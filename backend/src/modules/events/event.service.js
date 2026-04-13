@@ -1,5 +1,10 @@
 import Event from './event.model.js';
 import ApiError from '../../utils/ApiError.js';
+import { notifyParticipantsAndJudgesNewEvent } from '../../services/email/mailNotifications.js';
+import Certificate from '../certificates/certificate.model.js';
+import { issueCertificatesForCompletedEvent } from '../certificates/certificate.service.js';
+import { createNewEventNotification } from '../notifications/notification.service.js';
+import { validateEventDateRules, validateSlotsForEvent } from '../../utils/eventDatesAndSlots.js';
 
 // Valid status transitions — coordinator cannot skip stages
 const VALID_TRANSITIONS = {
@@ -15,14 +20,33 @@ const calendarDay = (d) => new Date(d).toISOString().slice(0, 10);
 // ── Create event ──────────────────────────────────────────────
 export const createEvent = async (coordinatorId, body) => {
   const event = await Event.create({ ...body, coordinatorId });
+
+  createNewEventNotification(event).catch((err) => {
+    console.error('[notifications] create event notification failed:', err?.message || err);
+  });
+
+  notifyParticipantsAndJudgesNewEvent(event).catch((err) => {
+    console.error('[email] new event broadcast failed (event still created):', err?.message || err);
+  });
+
   return event;
 };
 
 // ── Get all events (role-aware) ───────────────────────────────
 export const getAllEvents = async (role, userId) => {
   if (role === 'coordinator') {
-    // Coordinator sees only their own events
-    return Event.find({ coordinatorId: userId }).sort({ createdAt: -1 });
+    const events = await Event.find({ coordinatorId: userId }).sort({ createdAt: -1 }).lean();
+    if (events.length === 0) return events;
+    const ids = events.map((e) => e._id);
+    const counts = await Certificate.aggregate([
+      { $match: { eventId: { $in: ids } } },
+      { $group: { _id: '$eventId', count: { $sum: 1 } } },
+    ]);
+    const countMap = Object.fromEntries(counts.map((c) => [c._id.toString(), c.count]));
+    return events.map((e) => ({
+      ...e,
+      certificatesIssuedCount: countMap[e._id.toString()] || 0,
+    }));
   }
   // Participants and judges see all open+ events
   return Event.find({
@@ -41,12 +65,24 @@ const DRAFT_UPDATABLE = new Set([
   'title',
   'description',
   'domains',
+  'category',
   'slots',
   'rubric',
   'registrationDeadline',
   'eventStartDate',
   'eventEndDate',
 ]);
+
+function validateRubricWeights(rubric) {
+  if (!rubric?.criteria?.length) return;
+  for (const c of rubric.criteria) {
+    if (c.weight == null) continue;
+    const w = Number(c.weight);
+    if (Number.isNaN(w) || w < 0 || w > 100) {
+      throw new ApiError(400, 'Rubric weight must be between 0 and 100');
+    }
+  }
+}
 
 // ── Update event (coordinator only, draft stage) ──────────────
 export const updateEvent = async (eventId, coordinatorId, body) => {
@@ -60,6 +96,39 @@ export const updateEvent = async (eventId, coordinatorId, body) => {
   for (const key of DRAFT_UPDATABLE) {
     if (body[key] !== undefined) event[key] = body[key];
   }
+
+  const start =
+    body.eventStartDate !== undefined
+      ? String(body.eventStartDate).trim()
+      : calendarDay(event.eventStartDate);
+  const end =
+    body.eventEndDate !== undefined ? String(body.eventEndDate).trim() : calendarDay(event.eventEndDate);
+  const reg =
+    body.registrationDeadline !== undefined
+      ? String(body.registrationDeadline).trim()
+      : calendarDay(event.registrationDeadline);
+
+  const dr = validateEventDateRules({
+    eventStartDate: start,
+    eventEndDate: end,
+    registrationDeadline: reg,
+  });
+  if (!dr.ok) throw new ApiError(400, dr.message);
+
+  const slots =
+    body.slots !== undefined
+      ? body.slots
+      : event.slots.map((s) => ({
+          slotNumber: s.slotNumber,
+          date: calendarDay(s.date),
+          startTime: s.startTime,
+          endTime: s.endTime,
+        }));
+  const sr = validateSlotsForEvent(slots, start, end);
+  if (!sr.ok) throw new ApiError(400, sr.message);
+
+  validateRubricWeights(event.rubric);
+
   await event.save();
   return event;
 };
@@ -82,6 +151,15 @@ export const extendRegistrationDeadline = async (eventId, coordinatorId, registr
     throw new ApiError(400, 'New deadline must be today or a future date');
   }
 
+  const start = calendarDay(event.eventStartDate);
+  const end = calendarDay(event.eventEndDate);
+  const dr = validateEventDateRules({
+    eventStartDate: start,
+    eventEndDate: end,
+    registrationDeadline: newDay,
+  });
+  if (!dr.ok) throw new ApiError(400, dr.message);
+
   event.registrationDeadline = new Date(registrationDeadline);
   await event.save();
   return event;
@@ -102,7 +180,18 @@ export const transitionStatus = async (eventId, coordinatorId, newStatus) => {
 
   event.status = newStatus;
   await event.save();
-  return event;
+
+  let certificateIssuance = null;
+  if (newStatus === 'completed') {
+    try {
+      certificateIssuance = await issueCertificatesForCompletedEvent(event);
+    } catch (err) {
+      console.error('[certificate] issuance fatal:', err?.message || err);
+      certificateIssuance = { attempted: 0, issued: 0, skipped: 0, failed: 0, error: String(err?.message || err) };
+    }
+  }
+
+  return { event, certificateIssuance };
 };
 
 // ── Delete event (draft only) ─────────────────────────────────

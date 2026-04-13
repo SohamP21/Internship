@@ -14,10 +14,11 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const getMe = asyncHandler(async (req, res) => {
-  res.status(200).json(new ApiResponse(200, req.user));
+  const user = await authService.getUserByIdPublic(req.user._id);
+  res.status(200).json(new ApiResponse(200, user));
 });
 
 export const updateMe = asyncHandler(async (req, res) => {
-  const user = await authService.updateMe(req.user._id, req.body);
+  const user = await authService.updateProfile(req.user._id, req.body);
   res.status(200).json(new ApiResponse(200, user, 'Profile updated successfully'));
 });

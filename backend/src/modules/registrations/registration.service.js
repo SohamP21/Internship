@@ -1,7 +1,9 @@
 import Registration from './registration.model.js';
 import Event        from '../events/event.model.js';
+import Assignment   from '../assignments/assignment.model.js';
 import ApiError     from '../../utils/ApiError.js';
 import { uploadFile, deleteFile } from '../../config/storage.config.js';
+import { isValidGithubUrl, isValidDriveUrl } from '../../utils/linkValidation.js';
 
 // ── Register a team ───────────────────────────────────────────
 export const registerTeam = async ({ eventId, teamLeadId, body, files }) => {
@@ -28,6 +30,13 @@ export const registerTeam = async ({ eventId, teamLeadId, body, files }) => {
   const invalid = body.domains.filter((d) => !eventDomains.includes(d));
   if (invalid.length > 0) {
     throw new ApiError(400, `Invalid domains: ${invalid.join(', ')}. Choose from event domains.`);
+  }
+
+  if (!isValidGithubUrl(body.githubLink)) {
+    throw new ApiError(400, 'Please enter a valid GitHub URL');
+  }
+  if (!isValidDriveUrl(body.driveLink)) {
+    throw new ApiError(400, 'Please enter a valid Google Drive URL');
   }
 
   // 4. Handle file uploads
@@ -76,9 +85,29 @@ export const getRegistrationsByEvent = async (eventId, coordinatorId) => {
 
 // ── Get registrations for the logged-in participant ───────────
 export const getMyRegistrations = async (teamLeadId) => {
-  return Registration.find({ teamLeadId })
+  const list = await Registration.find({ teamLeadId })
     .populate('eventId', 'title status domains')
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (list.length === 0) return list;
+
+  const ids = list.map((r) => r._id);
+  const roomRows = await Assignment.find({ registrationId: { $in: ids } })
+    .select('registrationId roomNo')
+    .lean();
+
+  const roomByReg = {};
+  for (const row of roomRows) {
+    const k = row.registrationId.toString();
+    const label = (row.roomNo || '').trim();
+    if (label) roomByReg[k] = label;
+  }
+
+  return list.map((r) => ({
+    ...r,
+    roomNo: roomByReg[r._id.toString()] || '',
+  }));
 };
 
 // ── Get single registration ───────────────────────────────────

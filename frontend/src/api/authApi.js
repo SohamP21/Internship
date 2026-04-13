@@ -20,3 +20,4 @@ export const verifyEmailApi = (token, id) =>
   axiosInstance.get(`/auth/verify-email?token=${token}&id=${id}`);
 export const getMeApi = () => axiosInstance.get('/auth/me');
 export const updateMeApi = (data) => axiosInstance.patch('/auth/me', data);
+export const updateProfileApi = (data) => axiosInstance.patch('/users/profile', data);

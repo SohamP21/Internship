@@ -37,6 +37,13 @@ const criterionSchema = new mongoose.Schema({
     required: true,
     min:      1,
   },
+  /** Relative weight 0–100 for final score; normalized server-side. Omit for equal weights. */
+  weight: {
+    type:    Number,
+    min:     0,
+    max:     100,
+    default: undefined,
+  },
 }, { _id: false });
 
 // ── Main Event schema ─────────────────────────────────────────
@@ -64,6 +71,11 @@ const eventSchema = new mongoose.Schema(
         validator: (arr) => arr.length > 0,
         message:   'At least one domain is required',
       },
+    },
+    category: {
+      type:    String,
+      enum:    ['Tech', 'Cultural', 'Sports', 'Workshop', 'General'],
+      default: 'General',
     },
     status: {
       type:    String,

@@ -11,3 +11,8 @@ export const removeAssignmentApi = (assignmentId) =>
 
 export const getMyAssignmentsApi = (eventId) =>
   axiosInstance.get(`/assignments/events/${eventId}/my`);
+
+export const setRegistrationRoomApi = (eventId, registrationId, roomNo) =>
+  axiosInstance.patch(`/assignments/events/${eventId}/registrations/${registrationId}/room`, {
+    roomNo,
+  });

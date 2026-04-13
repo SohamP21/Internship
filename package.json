@@ -1,5 +1,5 @@
 {
-  "name": "inhouse-eventify",
+  "name": "eventify",
   "private": true,
   "description": "Run API + web app together (MongoDB must be running for the API).",
   "scripts": {

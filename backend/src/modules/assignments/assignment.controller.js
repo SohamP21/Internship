@@ -35,3 +35,13 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
   });
   res.status(200).json(new ApiResponse(200, assignments));
 });
+
+export const setRegistrationRoom = asyncHandler(async (req, res) => {
+  const result = await assignmentService.setRoomForRegistration({
+    eventId: req.params.eventId,
+    registrationId: req.params.registrationId,
+    roomNo: req.body.roomNo,
+    coordinatorId: req.user._id,
+  });
+  res.status(200).json(new ApiResponse(200, result));
+});

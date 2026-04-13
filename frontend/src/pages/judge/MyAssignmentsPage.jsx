@@ -78,8 +78,11 @@ const MyAssignmentsPage = () => {
             <div key={a._id} className={`glass-card ${isEvaluated ? 'success' : ''}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                     <h3 style={{ margin: 0 }}>{reg?.teamName}</h3>
+                    {a.roomNo && String(a.roomNo).trim() ? (
+                      <span className="badge badge-default">Room: {String(a.roomNo).trim()}</span>
+                    ) : null}
                     {isEvaluated && (
                       <span className="badge badge-success">
                         ✓ Evaluated — {a.evaluation.totalScore} pts

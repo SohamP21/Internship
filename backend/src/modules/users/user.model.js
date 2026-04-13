@@ -26,6 +26,25 @@ const userSchema = new mongoose.Schema(
       enum:    ['coordinator', 'participant', 'judge'],
       required: true,
     },
+    phone: {
+      type:    String,
+      trim:    true,
+      default: '',
+    },
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other', 'prefer_not_to_say'],
+    },
+    collegeName: {
+      type:    String,
+      trim:    true,
+      default: '',
+    },
+    avatarUrl: {
+      type:    String,
+      trim:    true,
+      default: '',
+    },
     isVerified: {
         type:    Boolean,
         default: true, // auto-verified on register

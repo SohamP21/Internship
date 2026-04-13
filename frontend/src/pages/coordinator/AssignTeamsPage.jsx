@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getAssignmentBoardApi, assignTeamApi, removeAssignmentApi } from '../../api/assignmentApi';
+import {
+  getAssignmentBoardApi,
+  assignTeamApi,
+  removeAssignmentApi,
+  setRegistrationRoomApi,
+} from '../../api/assignmentApi';
 import Layout from '../../components/Layout';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -14,6 +19,7 @@ const AssignTeamsPage = () => {
   const [actionError, setActionError] = useState('');
   const [selectedRegId, setSelectedRegId] = useState(null);
   const [dialog, setDialog] = useState(null);
+  const [roomDraft, setRoomDraft] = useState({});
 
   const fetchBoard = async () => {
     try {
@@ -26,7 +32,33 @@ const AssignTeamsPage = () => {
     }
   };
 
-  useEffect(() => { fetchBoard(); }, [eventId]);
+  useEffect(() => {
+    fetchBoard();
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!board?.registrations) return;
+    const map = board.roomByRegistration || {};
+    setRoomDraft((prev) => {
+      const next = { ...prev };
+      for (const reg of board.registrations) {
+        const id = String(reg._id);
+        if (next[id] === undefined) next[id] = map[id] || '';
+      }
+      return next;
+    });
+  }, [board]);
+
+  const saveRoom = async (registrationId) => {
+    const id = String(registrationId);
+    const val = roomDraft[id] != null ? String(roomDraft[id]) : '';
+    setActionError('');
+    try {
+      await setRegistrationRoomApi(eventId, id, val);
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Could not save room number');
+    }
+  };
 
   const requestAssign = (judgeId, judgeName) => {
     if (!selectedRegId) return;
@@ -87,7 +119,7 @@ const AssignTeamsPage = () => {
   }
 
   const { registrations, judgeProfiles, assignmentMap } = board;
-  const selectedReg = registrations.find((r) => r._id === selectedRegId);
+  const selectedReg = registrations.find((r) => String(r._id) === String(selectedRegId));
 
   const compatibleJudgeIds = selectedReg
     ? new Set(
@@ -97,7 +129,7 @@ const AssignTeamsPage = () => {
       )
     : new Set();
 
-  const assignedToSelected = selectedRegId ? (assignmentMap[selectedRegId] || []) : [];
+  const assignedToSelected = selectedRegId ? (assignmentMap[String(selectedRegId)] || []) : [];
   const alreadyAssignedJudgeIds = new Set(assignedToSelected.map((a) => a.judgeId));
 
   return (
@@ -155,8 +187,9 @@ const AssignTeamsPage = () => {
             </div>
             <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {registrations.map((reg) => {
-                const isSelected     = selectedRegId === reg._id;
-                const assignedJudges = assignmentMap[reg._id] || [];
+                const regId = String(reg._id);
+                const isSelected = String(selectedRegId) === regId;
+                const assignedJudges = assignmentMap[regId] || [];
                 const assignedCount  = assignedJudges.length;
 
                 return (
@@ -208,6 +241,27 @@ const AssignTeamsPage = () => {
                         })}
                       </div>
                     )}
+
+                    <div
+                      className="assign-room-row"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      role="presentation"
+                    >
+                      <label className="form-hint assign-room-label" htmlFor={`room-${regId}`}>
+                        Room No.
+                      </label>
+                      <input
+                        id={`room-${regId}`}
+                        className="form-input assign-room-input"
+                        value={roomDraft[regId] ?? ''}
+                        onChange={(e) =>
+                          setRoomDraft((p) => ({ ...p, [regId]: e.target.value }))
+                        }
+                        onBlur={() => saveRoom(reg._id)}
+                        placeholder="e.g. Lab 3B"
+                      />
+                    </div>
                   </div>
                 );
               })}

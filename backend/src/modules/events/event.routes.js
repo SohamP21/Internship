@@ -16,6 +16,7 @@ router.use(authenticate);
 
 // Any logged-in user can list and view events
 router.get('/',     eventController.getAllEvents);
+router.get('/summary/ops', eventController.getOpsSummary);
 router.get('/:id',  eventController.getEventById);
 
 // Coordinator-only routes

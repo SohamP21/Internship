@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Calendar, Users, Gavel, CheckCircle } from 'lucide-react';
 import {
   getAllEventsApi,
   transitionStatusApi,
@@ -9,30 +11,31 @@ import {
 import useAuthStore from '../../store/authStore';
 import Layout from '../../components/Layout';
 import ConfirmDialog from '../../components/ConfirmDialog';
-
-const BADGE_CLASS = {
-  draft:     'badge-draft',
-  open:      'badge-open',
-  assigning: 'badge-assigning',
-  judging:   'badge-judging',
-  completed: 'badge-completed',
-};
+import DashboardSkeleton from '../../components/coordinator/DashboardSkeleton';
+import EmptyState from '../../components/coordinator/EmptyState';
+import PageShell from '../../components/ui/PageShell';
+import HeroBanner from '../../components/ui/HeroBanner';
+import StatCard from '../../components/ui/StatCard';
+import EventCard from '../../components/ui/EventCard';
+import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import { staggerContainer, staggerItem } from '../../lib/motion';
+import { useToast } from '../../context/ToastContext';
 
 const NEXT_STATUS = {
-  draft:     'open',
-  open:      'assigning',
+  draft: 'open',
+  open: 'assigning',
   assigning: 'judging',
-  judging:   'completed',
+  judging: 'completed',
 };
 
 const NEXT_LABEL = {
-  draft:     '▶ Open Registrations',
-  open:      '⏭ Close & Assign',
-  assigning: '⚖ Start Judging',
-  judging:   '✓ Mark Completed',
+  draft: 'Open registrations',
+  open: 'Close & Assign',
+  assigning: 'Start Judging',
+  judging: 'Mark Completed',
 };
 
-/** Confirmation copy keyed by the status you are moving *into* */
 const TRANSITION_CONFIRM = {
   open: {
     title: 'Open registrations?',
@@ -57,18 +60,16 @@ const TRANSITION_CONFIRM = {
   },
   completed: {
     title: 'Mark event as completed?',
-    message:
-      'This marks the event as finished. Continue?',
+    message: 'This marks the event as finished. Continue?',
     confirmLabel: 'Mark completed',
     variant: 'danger',
   },
 };
 
-const formatEventDate = (d) => {
+const formatShortDate = (d) => {
   if (!d) return null;
   try {
     return new Date(d).toLocaleDateString(undefined, {
-      year: 'numeric',
       month: 'short',
       day: 'numeric',
     });
@@ -77,12 +78,26 @@ const formatEventDate = (d) => {
   }
 };
 
+const slotAggregate = (event) => {
+  const slots = event.slots || [];
+  let filled = 0;
+  const capPer = 25;
+  for (const s of slots) {
+    filled += Number(s.judgeCount) || 0;
+  }
+  const cap = slots.length * capPer;
+  return { count: slots.length, filled, cap };
+};
+
 const CoordinatorDashboard = () => {
-  const navigate  = useNavigate();
-  const user      = useAuthStore((s) => s.user);
-  const [events, setEvents]   = useState([]);
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const { push: pushToast } = useToast();
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  const [error, setError] = useState('');
+  const [transitionBusyEventId, setTransitionBusyEventId] = useState(null);
+  const [transitionBusyLabel, setTransitionBusyLabel] = useState('');
 
   const [transitionDialog, setTransitionDialog] = useState({
     open: false,
@@ -101,7 +116,8 @@ const CoordinatorDashboard = () => {
   const fetchEvents = async () => {
     try {
       const res = await getAllEventsApi();
-      setEvents(res.data.data);
+      const raw = res?.data?.data;
+      setEvents(Array.isArray(raw) ? raw : []);
     } catch {
       setError('Failed to load events');
     } finally {
@@ -109,17 +125,65 @@ const CoordinatorDashboard = () => {
     }
   };
 
-  useEffect(() => { fetchEvents(); }, []);
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const stats = useMemo(() => {
+    const out = { total: events.length, open: 0, judging: 0, completed: 0 };
+    for (const e of events) {
+      if (e.status === 'open') out.open += 1;
+      else if (e.status === 'judging') out.judging += 1;
+      else if (e.status === 'completed') out.completed += 1;
+    }
+    return out;
+  }, [events]);
+
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const aTime = a.registrationDeadline ? new Date(a.registrationDeadline).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.registrationDeadline ? new Date(b.registrationDeadline).getTime() : Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
+    });
+  }, [events]);
 
   const runTransition = async () => {
     const { eventId, nextStatus } = transitionDialog;
     if (!eventId || !nextStatus) return;
     setTransitionDialog({ open: false, eventId: null, nextStatus: null });
+
+    const busyLabel =
+      nextStatus === 'completed' ? 'Generating certificates...' : 'Updating...';
+    setTransitionBusyEventId(eventId);
+    setTransitionBusyLabel(busyLabel);
+
     try {
-      await transitionStatusApi(eventId, nextStatus);
+      const res = await transitionStatusApi(eventId, nextStatus);
+      const payload = res?.data?.data;
+      const cert = payload?.certificateIssuance;
+
+      if (nextStatus === 'completed' && cert) {
+        if (cert.error) {
+          pushToast(
+            'Event completed; certificate issuance encountered an error. Check server logs.',
+            'error'
+          );
+        } else if (cert.attempted > 0) {
+          pushToast(
+            `Event completed! Certificates sent to all ${cert.attempted} students.`,
+            'success'
+          );
+        } else {
+          pushToast('Event completed! No registrations to issue certificates for.', 'success');
+        }
+      }
+
       fetchEvents();
     } catch (err) {
       alert(err.response?.data?.message || 'Status update failed');
+    } finally {
+      setTransitionBusyEventId(null);
+      setTransitionBusyLabel('');
     }
   };
 
@@ -169,161 +233,225 @@ const CoordinatorDashboard = () => {
 
   if (loading) {
     return (
-      <Layout maxWidth="medium">
-        <div className="loading-wrapper">
-          <div className="spinner" />
-          <span className="loading-text">Loading your events…</span>
-        </div>
+      <Layout maxWidth="wide" viewport="command">
+        <DashboardSkeleton />
       </Layout>
     );
   }
 
   return (
-    <Layout maxWidth="medium">
-      {/* Page Header */}
-      <div className="page-header">
-        <div className="page-header-info">
-          <h2 className="gradient-text">Coordinator Dashboard</h2>
-          <p>Welcome back, {user?.name} 👋</p>
-        </div>
-        <div className="page-header-actions">
-          <button onClick={() => navigate('/coordinator/events/create')} className="btn btn-primary">
-            ✦ Create Event
-          </button>
-        </div>
-      </div>
+    <Layout maxWidth="wide" viewport="command">
+      <PageShell>
+        <HeroBanner
+          greeting={`Hello, ${user?.name?.split(' ')[0] || 'there'}`}
+          subtitle="Manage registrations, assignments, and judging from one calm workspace."
+          ctaLabel="Create event"
+          ctaAction={() => navigate('/coordinator/events/create')}
+        />
 
-      {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>{error}</div>}
+        <motion.div className="ds-stat-row ds-mt-24" variants={staggerContainer} initial={false} animate="visible">
+          <motion.div variants={staggerItem}>
+            <StatCard
+              icon={<Calendar size={22} strokeWidth={2} />}
+              label="Total events"
+              value={stats.total}
+              accentColor="orange"
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <StatCard
+              icon={<Users size={22} strokeWidth={2} />}
+              label="Open"
+              value={stats.open}
+              accentColor="green"
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <StatCard
+              icon={<Gavel size={22} strokeWidth={2} />}
+              label="Judging"
+              value={stats.judging}
+              accentColor="blue"
+            />
+          </motion.div>
+          <motion.div variants={staggerItem}>
+            <StatCard
+              icon={<CheckCircle size={22} strokeWidth={2} />}
+              label="Completed"
+              value={stats.completed}
+              accentColor="green"
+            />
+          </motion.div>
+        </motion.div>
 
-      {events.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">🎪</div>
-          <h3>No events yet</h3>
-          <p>Create your first event to get started</p>
-          <button onClick={() => navigate('/coordinator/events/create')} className="btn btn-primary">
-            ✦ Create Event
-          </button>
-        </div>
-      )}
+        <div className="ds-dash-grid ds-mt-24">
+          <div>
+            <span className="ds-events-section-title gradient-text">Your events</span>
 
-      {/* Event Cards */}
-      <div className="stagger-children" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {events.map((event) => (
-          <div key={event._id} className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <h3 style={{ marginBottom: 8 }}>{event.title}</h3>
-                <span className={`badge ${BADGE_CLASS[event.status] || 'badge-draft'}`}>
-                  {event.status?.toUpperCase()}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {NEXT_STATUS[event.status] && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTransitionDialog({
-                        open: true,
-                        eventId: event._id,
-                        nextStatus: NEXT_STATUS[event.status],
-                      })
-                    }
-                    className="btn btn-primary btn-sm"
-                  >
-                    {NEXT_LABEL[event.status]}
-                  </button>
-                )}
-                {event.status === 'open' && (
-                  <button
-                    type="button"
-                    onClick={() => openExtendModal(event)}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Extend deadline
-                  </button>
-                )}
-                <button
-                  onClick={() => navigate(`/coordinator/events/${event._id}/registrations`)}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Registrations
-                </button>
-                {(event.status === 'judging' || event.status === 'completed') && (
-                  <button
-                    onClick={() => navigate(`/coordinator/events/${event._id}/results`)}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    Results
-                  </button>
-                )}
-                {event.status === 'assigning' && (
-                  <button
-                    onClick={() => navigate(`/coordinator/events/${event._id}/assign`)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    Assign Teams
-                  </button>
-                )}
-                {event.status === 'draft' && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteDialog({ open: true, id: event._id })}
-                    className="btn btn-danger btn-sm"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
+            {error ? (
+              <div className="alert alert-danger alert-spacing">{error}</div>
+            ) : null}
 
-            {/* Domains */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>
-              {event.domains.map((d) => (
-                <span key={d} className="domain-tag">{d}</span>
-              ))}
-            </div>
+            {sortedEvents.length === 0 ? (
+              <EmptyState onCreate={() => navigate('/coordinator/events/create')} />
+            ) : (
+              <motion.div className="ds-events-grid" variants={staggerContainer} initial={false} animate="visible">
+                {sortedEvents.map((event) => {
+                  const agg = slotAggregate(event);
+                  const registrationSummary =
+                    agg.cap > 0 ? `${agg.filled} / ${agg.cap} registered` : `${agg.filled} registered`;
+                  const start = formatShortDate(event.eventStartDate);
+                  const end = formatShortDate(event.eventEndDate);
+                  const deadline = formatShortDate(event.registrationDeadline);
 
-            {/* Slots summary */}
-            {(event.eventStartDate || event.eventEndDate || event.registrationDeadline) && (
-              <div style={{ marginTop: 10, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                {event.eventStartDate && (
-                  <span style={{ marginRight: 14 }}>
-                    <strong>Event starts:</strong> {formatEventDate(event.eventStartDate)}
-                  </span>
-                )}
-                {event.eventEndDate && (
-                  <span style={{ marginRight: 14 }}>
-                    <strong>Event ends:</strong> {formatEventDate(event.eventEndDate)}
-                  </span>
-                )}
-                {event.registrationDeadline && (
-                  <span>
-                    <strong>Reg. deadline:</strong> {formatEventDate(event.registrationDeadline)}
-                  </span>
-                )}
-              </div>
-            )}
+                  const metaSegments = [];
+                  if (start && end) metaSegments.push(`${start} – ${end}`);
+                  else if (start || end) metaSegments.push(start || end);
+                  if (deadline) metaSegments.push(`Reg. deadline ${deadline}`);
+                  metaSegments.push(registrationSummary);
 
-            <div style={{ marginTop: 12, fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-              {event.slots?.map((s) => (
-                <span key={s.slotNumber}>
-                  <strong>Slot {s.slotNumber}:</strong>{' '}
-                  {new Date(s.date).toLocaleDateString()} · {s.startTime}–{s.endTime}{' '}
-                  <span style={{ color: 'var(--text-secondary)' }}>({s.judgeCount}/25)</span>
-                </span>
-              ))}
-            </div>
+                  const primaryAction = NEXT_STATUS[event.status]
+                    ? {
+                        label: NEXT_LABEL[event.status],
+                        onClick: () =>
+                          setTransitionDialog({
+                            open: true,
+                            eventId: event._id,
+                            nextStatus: NEXT_STATUS[event.status],
+                          }),
+                      }
+                    : null;
 
-            {/* Rubric summary */}
-            {event.rubric?.criteria?.length > 0 && (
-              <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                <strong>Rubric:</strong>{' '}
-                {event.rubric.criteria.map((c) => `${c.name} (${c.maxScore}pts)`).join(' · ')}
-              </div>
+                  const secondaryActions = [
+                    {
+                      label: 'Registrations',
+                      onClick: () => navigate(`/coordinator/events/${event._id}/registrations`),
+                    },
+                    ...(event.status === 'assigning'
+                      ? [
+                          {
+                            label: 'Assign Teams',
+                            onClick: () => navigate(`/coordinator/events/${event._id}/assign`),
+                          },
+                        ]
+                      : []),
+                    ...((event.status === 'judging' || event.status === 'completed')
+                      ? [
+                          {
+                            label: 'Results',
+                            onClick: () => navigate(`/coordinator/events/${event._id}/results`),
+                          },
+                        ]
+                      : []),
+                    ...(event.status === 'draft'
+                      ? [
+                          {
+                            label: 'Delete',
+                            onClick: () => setDeleteDialog({ open: true, id: event._id }),
+                          },
+                        ]
+                      : []),
+                  ];
+
+                  const subtleActions =
+                    event.status === 'open' ? [{ label: 'Extend Deadline', onClick: () => openExtendModal(event) }] : [];
+
+                  const hasSlots = (event.slots || []).length > 0;
+                  const hasRubric = (event.rubric?.criteria || []).length > 0;
+                  const expandContent =
+                    hasSlots || hasRubric ? (
+                      <>
+                        {hasSlots ? (
+                          <div className="ui-event-card__detail-block">
+                            {(event.slots || []).map((slot) => (
+                              <div key={slot.slotNumber} className="ui-event-card__detail-line">
+                                <span>
+                                  Slot {slot.slotNumber} · {formatShortDate(slot.date)} · {slot.startTime} -{' '}
+                                  {slot.endTime}
+                                </span>
+                                <span>{Number(slot.judgeCount) || 0}/25</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        {hasRubric ? (
+                          <div className="ui-event-card__detail-block">
+                            {(event.rubric?.criteria || []).map((criterion) => (
+                              <div key={criterion.name} className="ui-event-card__detail-line">
+                                <span>{criterion.name}</span>
+                                <span>{criterion.maxScore} pts</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null;
+
+                  let expandClosed = 'View details';
+                  if (hasSlots && hasRubric) expandClosed = 'View slots & rubric';
+                  else if (hasSlots) expandClosed = 'View slots';
+                  else if (hasRubric) expandClosed = 'View rubric';
+
+                  const actionsEl = (
+                    <>
+                      {subtleActions.map((a) => (
+                        <Button key={a.label} type="button" variant="ghost" size="sm" onClick={a.onClick}>
+                          {a.label}
+                        </Button>
+                      ))}
+                      {secondaryActions.map((a) => (
+                        <Button key={a.label} type="button" variant="ghost" size="sm" onClick={a.onClick}>
+                          {a.label}
+                        </Button>
+                      ))}
+                    </>
+                  );
+
+                  return (
+                    <motion.div key={event._id} variants={staggerItem}>
+                      <EventCard
+                        title={event.title}
+                        status={event.status}
+                        category={event.category}
+                        tags={event.domains || []}
+                        maxTags={3}
+                        registeredCount={agg.filled}
+                        totalSlots={agg.cap > 0 ? agg.cap : undefined}
+                        metadataLine={metaSegments.join('  ·  ')}
+                        primaryAction={primaryAction}
+                        primaryActionLoading={transitionBusyEventId === event._id}
+                        primaryActionLoadingLabel={transitionBusyLabel}
+                        certificatesIssuedCount={event.certificatesIssuedCount}
+                        expandContent={expandContent}
+                        expandToggleLabelClosed={expandClosed}
+                        actions={actionsEl}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
             )}
           </div>
-        ))}
-      </div>
+
+          <aside>
+            <Card>
+              <h3 className="ds-quick-title">Quick actions</h3>
+              <p className="ds-quick-copy ui-muted">
+                Spin up a new competition, review signups, or jump into assignments.
+              </p>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="ui-btn--block"
+                onClick={() => navigate('/coordinator/events/create')}
+              >
+                + Create event
+              </Button>
+            </Card>
+          </aside>
+        </div>
+      </PageShell>
 
       <ConfirmDialog
         open={transitionDialog.open && !!transitionDialog.nextStatus}
@@ -332,9 +460,7 @@ const CoordinatorDashboard = () => {
         confirmLabel={TRANSITION_CONFIRM[transitionDialog.nextStatus]?.confirmLabel || 'Confirm'}
         variant={TRANSITION_CONFIRM[transitionDialog.nextStatus]?.variant || 'primary'}
         onConfirm={runTransition}
-        onCancel={() =>
-          setTransitionDialog({ open: false, eventId: null, nextStatus: null })
-        }
+        onCancel={() => setTransitionDialog({ open: false, eventId: null, nextStatus: null })}
       />
 
       <ConfirmDialog
@@ -348,7 +474,7 @@ const CoordinatorDashboard = () => {
         onCancel={() => setDeleteDialog({ open: false, id: null })}
       />
 
-      {extendModal.open && (
+      {extendModal.open ? (
         <div
           className="confirm-dialog-backdrop"
           role="presentation"
@@ -358,7 +484,7 @@ const CoordinatorDashboard = () => {
           }
         >
           <div
-            className="confirm-dialog glass-card"
+            className="confirm-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="extend-deadline-title"
@@ -370,7 +496,7 @@ const CoordinatorDashboard = () => {
             <p className="confirm-dialog-message">
               Set a new last day for teams to register. Must be today or a future calendar date.
             </p>
-            <div className="form-group" style={{ marginBottom: 16 }}>
+            <div className="form-group form-group--mb">
               <label className="form-label" htmlFor="extend-deadline-input">
                 New deadline
               </label>
@@ -385,11 +511,9 @@ const CoordinatorDashboard = () => {
                 disabled={extendModal.saving}
               />
             </div>
-            {extendModal.extendError && (
-              <div className="alert alert-danger" style={{ marginBottom: 12 }}>
-                {extendModal.extendError}
-              </div>
-            )}
+            {extendModal.extendError ? (
+              <div className="alert alert-danger alert-spacing">{extendModal.extendError}</div>
+            ) : null}
             <div className="confirm-dialog-actions">
               <button
                 type="button"
@@ -412,7 +536,7 @@ const CoordinatorDashboard = () => {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </Layout>
   );
 };

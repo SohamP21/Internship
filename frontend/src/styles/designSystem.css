@@ -1,0 +1,106 @@
+/* ═══════════════════════════════════════════════════════════════
+   EVENTIFY — Design system (single source of truth)
+   All colors, fonts, spacing, radii, shadows: define here only.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Background layers */
+  --bg-root: #141920;
+  --bg-base: var(--bg-root);
+  --bg-surface: #1a2030;
+  --bg-card: #1e2536;
+  --bg-card-hover: #232b40;
+  --bg-inner: #252d3d;
+
+  /* Public / marketing — near-black canvas (landing, auth) */
+  --bg-void: #010102;
+  --bg-landing: #050608;
+  --bg-landing-elevated: rgba(14, 18, 28, 0.85);
+  --bg-auth-panel: #030304;
+  --bg-auth-card: rgba(10, 12, 18, 0.94);
+  --shadow-auth-card: 0 0 0 0.5px var(--border), 0 25px 80px rgba(0, 0, 0, 0.55),
+    0 0 80px rgba(74, 222, 128, 0.06);
+  --shadow-landing-header: 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Accents */
+  --accent-green: #4ade80;
+  --accent-green-glow: rgba(74, 222, 128, 0.12);
+  --accent-orange: #f97316;
+  --accent-orange-glow: rgba(249, 115, 22, 0.12);
+  --accent-blue: #60a5fa;
+  --accent-blue-glow: rgba(96, 165, 250, 0.12);
+  --accent-red: #f87171;
+  --accent-red-glow: rgba(248, 113, 113, 0.12);
+
+  --gradient-hero: linear-gradient(135deg, #c2410c 0%, #166534 60%, #134e4a 100%);
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(74, 222, 128, 0.25);
+
+  /* Typography */
+  --font-display: 'Syne', ui-sans-serif, sans-serif;
+  --font-body: 'DM Sans', ui-sans-serif, sans-serif;
+  --font-sans: var(--font-body);
+
+  /* Spacing scale (only these) */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow-green: 0 0 20px rgba(74, 222, 128, 0.15);
+  --shadow-glow-orange: 0 0 20px rgba(249, 115, 22, 0.15);
+  --shadow-glow-blue: 0 0 20px rgba(96, 165, 250, 0.15);
+
+  /* Scrollbar */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --transition-fast: 0.15s var(--ease-out);
+  --transition-base: 0.25s var(--ease-out);
+
+  /* Legacy bridge (older pages) */
+  --bg-elevated: var(--bg-inner);
+  --bg-muted: var(--bg-card-hover);
+  --bg-glass: var(--bg-surface);
+  --bg-glass-hover: var(--bg-card-hover);
+  --bg-glass-border: var(--border);
+  --card-bg: var(--bg-card);
+  --card-border: var(--border);
+  --card-hover-border: var(--border-hover);
+  --input-bg: var(--bg-inner);
+  --input-border: var(--border);
+  --input-focus-border: var(--border-accent);
+  --primary: var(--accent-green);
+  --primary-hover: var(--accent-green);
+  --primary-light: var(--accent-green);
+  --danger: var(--accent-red);
+  --success: var(--accent-green);
+  --warning: var(--accent-orange);
+  --text-inverse: #0f172a;
+  color-scheme: dark;
+}

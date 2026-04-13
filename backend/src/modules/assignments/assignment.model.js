@@ -22,6 +22,11 @@ const assignmentSchema = new mongoose.Schema(
       ref:      'User',
       required: true,  // coordinator's userId
     },
+    roomNo: {
+      type:    String,
+      trim:    true,
+      default: '',
+    },
   },
   { timestamps: true }
 );

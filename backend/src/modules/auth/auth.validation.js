@@ -8,6 +8,10 @@ export const registerSchema = z.object({
     errorMap: () => ({ message: 'Role must be participant or judge' }),
   }),
   judgeAccessCode: z.string().optional(),
+  phone: z.string().trim().optional(),
+  collegeName: z.string().trim().optional(),
+  gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional(),
+  profilePhoto: z.string().optional(),
 });
 
 export const loginSchema = z.object({
@@ -15,6 +19,8 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-export const updateMeSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').trim(),
-});
+export const updateMeSchema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters').trim(),
+  })
+  .strict();

@@ -1,11 +1,12 @@
-console.log("MONGO_URI:", process.env.MONGO_URI);
-console.log("CLOUDINARY:", process.env.CLOUDINARY_CLOUD_NAME);
 import app from './src/app.js';
 import connectDB from './src/config/db.js';
 import { ENV } from './src/config/env.js';
-import 'dotenv/config';
+import { ensurePublicCertificatesDir } from './src/utils/certificateGenerator.js';
+import { logOutgoingEmailStatus } from './src/services/email/mailNotifications.js';
 
 const start = async () => {
+  ensurePublicCertificatesDir();
+  logOutgoingEmailStatus();
   await connectDB();
   app.listen(ENV.PORT, () => {
     console.log(`Eventify server running on port ${ENV.PORT}`);

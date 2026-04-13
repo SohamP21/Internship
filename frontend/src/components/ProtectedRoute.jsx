@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (!token) return <Navigate to="/login" replace />;
   if (!user) {
     return (
-      <div className="loading-wrapper" style={{ minHeight: '100vh' }}>
+      <div className="ds-loading-screen">
         <div className="spinner" />
         <span className="loading-text">Loading your session…</span>
       </div>

@@ -1,6 +1,7 @@
 import asyncHandler from '../../utils/asyncHandler.js';
 import ApiResponse  from '../../utils/ApiResponse.js';
 import * as eventService from './event.service.js';
+import * as eventOpsService from './event.ops.service.js';
 
 export const createEvent = asyncHandler(async (req, res) => {
   const event = await eventService.createEvent(req.user._id, req.body);
@@ -10,6 +11,13 @@ export const createEvent = asyncHandler(async (req, res) => {
 export const getAllEvents = asyncHandler(async (req, res) => {
   const events = await eventService.getAllEvents(req.user.role, req.user._id);
   res.status(200).json(new ApiResponse(200, events));
+});
+
+/** Sidebar + control panel: optional ?eventId= for scoped metrics (coordinator / judge). */
+export const getOpsSummary = asyncHandler(async (req, res) => {
+  const eventId = req.query.eventId || null;
+  const data = await eventOpsService.getOpsSummary({ user: req.user, eventId });
+  res.status(200).json(new ApiResponse(200, data));
 });
 
 export const getEventById = asyncHandler(async (req, res) => {
@@ -23,12 +31,18 @@ export const updateEvent = asyncHandler(async (req, res) => {
 });
 
 export const transitionStatus = asyncHandler(async (req, res) => {
-  const event = await eventService.transitionStatus(
+  const { event, certificateIssuance } = await eventService.transitionStatus(
     req.params.id,
     req.user._id,
     req.body.status
   );
-  res.status(200).json(new ApiResponse(200, event, `Event moved to "${event.status}"`));
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      { event, certificateIssuance },
+      `Event moved to "${event.status}"`
+    )
+  );
 });
 
 export const deleteEvent = asyncHandler(async (req, res) => {

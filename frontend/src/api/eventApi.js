@@ -8,3 +8,9 @@ export const transitionStatusApi  = (id, status) => axiosInstance.patch(`/events
 export const extendRegistrationDeadlineApi = (id, registrationDeadline) =>
   axiosInstance.patch(`/events/${id}/registration-deadline`, { registrationDeadline });
 export const deleteEventApi       = (id)         => axiosInstance.delete(`/events/${id}`);
+
+/** Sidebar + control panel (optional eventId for coordinator/judge scoped metrics). */
+export const getOpsSummaryApi = (eventId) =>
+  axiosInstance.get('/events/summary/ops', {
+    params: eventId ? { eventId } : {},
+  });

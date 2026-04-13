@@ -1,29 +1,45 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getEventByIdApi } from '../../api/eventApi';
 import { registerTeamApi } from '../../api/registrationApi';
-import Layout from '../../components/Layout';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import FormLayout from '../../components/forms/FormLayout';
+import FormGrid from '../../components/forms/FormGrid';
+import FormField from '../../components/forms/FormField';
 
 const emptyMember = () => ({ name: '', email: '', role: '' });
 
+const isValidGithub = (v) => {
+  const s = String(v || '').trim();
+  if (!s) return true;
+  return s.startsWith('https://github.com/');
+};
+
+const isValidDrive = (v) => {
+  const s = String(v || '').trim();
+  if (!s) return true;
+  return s.startsWith('https://drive.google.com/');
+};
+
 const RegisterTeamPage = () => {
   const { eventId } = useParams();
-  const navigate    = useNavigate();
+  const navigate = useNavigate();
 
-  const [event, setEvent]     = useState(null);
+  const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [error, setError]     = useState('');
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [teamName,    setTeamName]    = useState('');
-  const [domains,     setDomains]     = useState([]);
-  const [members,     setMembers]     = useState([emptyMember()]);
-  const [githubLink,  setGithubLink]  = useState('');
-  const [driveLink,   setDriveLink]   = useState('');
-  const [pptFile,     setPptFile]     = useState(null);
+  const [teamName, setTeamName] = useState('');
+  const [domains, setDomains] = useState([]);
+  const [members, setMembers] = useState([emptyMember()]);
+  const [githubLink, setGithubLink] = useState('');
+  const [driveLink, setDriveLink] = useState('');
+  const [githubLinkError, setGithubLinkError] = useState('');
+  const [driveLinkError, setDriveLinkError] = useState('');
+  const [pptFile, setPptFile] = useState(null);
   const [abstractFile, setAbstractFile] = useState(null);
 
   useEffect(() => {
@@ -34,9 +50,7 @@ const RegisterTeamPage = () => {
   }, [eventId]);
 
   const toggleDomain = (d) => {
-    setDomains((prev) =>
-      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-    );
+    setDomains((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   };
 
   const addMember = () => {
@@ -60,12 +74,20 @@ const RegisterTeamPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    if (!teamName.trim())  return setError('Team name is required');
+    if (!teamName.trim()) return setError('Team name is required');
     if (domains.length === 0) return setError('Select at least one domain');
     for (const m of members) {
       if (!m.name.trim() || !m.email.trim()) {
         return setError('All team members need a name and email');
       }
+    }
+    if (!isValidGithub(githubLink)) {
+      setGithubLinkError('Please enter a valid GitHub URL');
+      return setError('Please enter a valid GitHub URL');
+    }
+    if (!isValidDrive(driveLink)) {
+      setDriveLinkError('Please enter a valid Google Drive URL');
+      return setError('Please enter a valid Google Drive URL');
     }
     setConfirmOpen(true);
   };
@@ -73,12 +95,12 @@ const RegisterTeamPage = () => {
   const executeRegistration = async () => {
     setConfirmOpen(false);
     const formData = new FormData();
-    formData.append('teamName',   teamName);
-    formData.append('domains',    JSON.stringify(domains));
-    formData.append('members',    JSON.stringify(members));
+    formData.append('teamName', teamName);
+    formData.append('domains', JSON.stringify(domains));
+    formData.append('members', JSON.stringify(members));
     formData.append('githubLink', githubLink);
-    formData.append('driveLink',  driveLink);
-    if (pptFile)      formData.append('ppt',      pptFile);
+    formData.append('driveLink', driveLink);
+    if (pptFile) formData.append('ppt', pptFile);
     if (abstractFile) formData.append('abstract', abstractFile);
 
     setSubmitting(true);
@@ -95,151 +117,228 @@ const RegisterTeamPage = () => {
 
   if (loading) {
     return (
-      <Layout maxWidth="narrow">
+      <FormLayout leftTitle="Team registration" leftSubtitle="Loading event details…" leftContent={null}>
         <div className="loading-wrapper">
           <div className="spinner" />
           <span className="loading-text">Loading event…</span>
         </div>
-      </Layout>
+      </FormLayout>
     );
   }
 
   if (!event) {
     return (
-      <Layout maxWidth="narrow">
+      <FormLayout leftTitle="Team registration" leftSubtitle="We could not load this event." leftContent={null}>
         <div className="alert alert-danger">{error || 'Event not found'}</div>
-      </Layout>
+      </FormLayout>
     );
   }
 
+  const leftBody = (
+    <>
+      <div className="form-profile-badge">Student</div>
+      <p className="form-shell__left-subtitle">Ready to participate?</p>
+      <div className="form-preview-tags">
+        {(event.domains || []).slice(0, 6).map((d) => (
+          <span key={d} className="form-preview-tag">
+            {d}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+
   return (
-    <Layout maxWidth="narrow">
-      <button onClick={() => navigate(-1)} className="back-btn">← Back</button>
-      <h2 className="gradient-text" style={{ marginBottom: 4 }}>Register for {event.title}</h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 28 }}>
-        Fill in your team details below
-      </p>
-
-      {error   && <div className="alert alert-danger" style={{ marginBottom: 18 }}>⚠ {error}</div>}
-      {success && <div className="alert alert-success" style={{ marginBottom: 18 }}>✓ {success}</div>}
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-        {/* Team name */}
-        <div className="form-group">
-          <label className="form-label">Team Name *</label>
-          <input value={teamName} onChange={(e) => setTeamName(e.target.value)}
-            placeholder="e.g. Team Falcon" className="form-input" />
-        </div>
-
-        {/* Domain checkboxes */}
-        <div className="form-group">
-          <label className="form-label">Project Domain(s) * <span>(select all that apply)</span></label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-            {event.domains.map((d) => (
-              <label key={d}
-                className={`chip-toggle ${domains.includes(d) ? 'active' : ''}`}
-                onClick={() => toggleDomain(d)}
-              >
-                <input type="checkbox" checked={domains.includes(d)} onChange={() => toggleDomain(d)} />
-                {domains.includes(d) ? '✓ ' : ''}{d}
-              </label>
-            ))}
+    <FormLayout
+      leftTitle={event.title}
+      leftSubtitle="Register your team for this event. Fields below match what coordinators review."
+      leftContent={leftBody}
+      footer={
+        <div className="form-shell__footer form-shell__footer--split">
+          <div className="form-footer-left">
+            <button type="button" onClick={() => navigate(-1)} className="btn btn-ghost">
+              ← Back
+            </button>
+            <Link to="/participant/dashboard" className="btn btn-ghost">
+              Dashboard
+            </Link>
           </div>
-        </div>
-
-        {/* Team members */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <label className="form-label">Team Members * <span>(1–6)</span></label>
-            {members.length < 6 && (
-              <button type="button" onClick={addMember} className="btn btn-secondary btn-sm">+ Add Member</button>
+          <button type="submit" form="register-team-form" disabled={submitting} className="btn btn-primary">
+            {submitting ? (
+              <>
+                <span className="spinner spinner--sm" aria-hidden />
+                Submitting…
+              </>
+            ) : (
+              'Submit registration'
             )}
-          </div>
+          </button>
+        </div>
+      }
+    >
+      <p className="form-section-label">Team details</p>
+      <p className="form-hint mb-1">Fill in your team details below.</p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {members.map((m, i) => (
-              <div key={i} className="glass-card no-hover" style={{ position: 'relative' }}>
-                <p style={{ margin: '0 0 10px', fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Member {i + 1} {i === 0 ? '(Team Lead)' : ''}
-                </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ flex: 2, minWidth: 140 }}>
-                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Full Name *</label>
-                    <input value={m.name}
-                      onChange={(e) => updateMember(i, 'name', e.target.value)}
-                      placeholder="Jane Doe" className="form-input" />
-                  </div>
-                  <div className="form-group" style={{ flex: 2, minWidth: 140 }}>
-                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Email *</label>
-                    <input value={m.email} type="email"
-                      onChange={(e) => updateMember(i, 'email', e.target.value)}
-                      placeholder="jane@college.edu" className="form-input" />
-                  </div>
-                  <div className="form-group" style={{ flex: 1, minWidth: 100 }}>
-                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Role</label>
-                    <input value={m.role}
-                      onChange={(e) => updateMember(i, 'role', e.target.value)}
-                      placeholder="e.g. ML Dev" className="form-input" />
-                  </div>
+      {error ? <div className="alert alert-danger alert-spacing">{error}</div> : null}
+      {success ? <div className="alert alert-success alert-spacing">{success}</div> : null}
+
+      <form id="register-team-form" onSubmit={handleSubmit}>
+        <FormGrid>
+          <FormField label="Team name *" htmlFor="rt-name" spanFull>
+            <input
+              id="rt-name"
+              value={teamName}
+              onChange={(e) => setTeamName(e.target.value)}
+              placeholder="e.g. Team Falcon"
+              className="form-input"
+            />
+          </FormField>
+
+          <FormField label="Project domain(s) *" spanFull>
+            <span className="form-hint">Select all that apply</span>
+            <div className="coop-tag-row domain-tags-flow domain-picker-chips" role="group" aria-label="Project domains">
+              {event.domains.map((d, i) => {
+                const inputId = `rt-domain-${eventId}-${i}`;
+                return (
+                  <label key={`${d}-${i}`} htmlFor={inputId} className={`chip-toggle ${domains.includes(d) ? 'active' : ''}`}>
+                    <input
+                      id={inputId}
+                      type="checkbox"
+                      checked={domains.includes(d)}
+                      onChange={() => toggleDomain(d)}
+                    />
+                    <span className="chip-toggle__text">{d}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </FormField>
+
+          <FormField spanFull>
+            <div className="form-nav-split">
+              <span className="form-field-label mb-0">
+                Team members * <span className="form-hint">(1–6)</span>
+              </span>
+              {members.length < 6 ? (
+                <div className="form-nav-split-right">
+                  <button type="button" onClick={addMember} className="btn btn-secondary btn-sm">
+                    + Add member
+                  </button>
                 </div>
-                {members.length > 1 && (
-                  <button type="button" onClick={() => removeMember(i)} style={{
-                    position: 'absolute', top: 12, right: 12,
-                    background: 'none', border: 'none', color: 'var(--text-muted)',
-                    fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1,
-                  }}>×</button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* File uploads */}
-        <div className="form-group">
-          <label className="form-label">Project Files</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8 }}>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 500 }}>PPT / Presentation</label>
-              <div className="file-input-wrapper">
-                <input type="file" accept=".ppt,.pptx,.pdf"
-                  onChange={(e) => setPptFile(e.target.files[0])} />
-              </div>
-              <span className="form-hint">PDF, PPT, PPTX — max 20MB</span>
+              ) : null}
             </div>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 500 }}>Abstract / Report</label>
-              <div className="file-input-wrapper">
-                <input type="file" accept=".pdf,.doc,.docx"
-                  onChange={(e) => setAbstractFile(e.target.files[0])} />
-              </div>
-              <span className="form-hint">PDF, DOC, DOCX — max 20MB</span>
+            <div className="member-list-stack">
+              {members.map((m, i) => (
+                <div key={i} className="glass-card no-hover member-card-rel form-slot-block">
+                  <button
+                    type="button"
+                    className="member-remove-btn"
+                    onClick={() => removeMember(i)}
+                    aria-label="Remove member"
+                  >
+                    ×
+                  </button>
+                  <p className="form-hint member-card-label">
+                    Member {i + 1}
+                    {i === 0 ? ' (team lead)' : ''}
+                  </p>
+                  <FormGrid>
+                    <FormField label="Full name *" htmlFor={`m-name-${i}`}>
+                      <input
+                        id={`m-name-${i}`}
+                        value={m.name}
+                        onChange={(e) => updateMember(i, 'name', e.target.value)}
+                        placeholder="Jane Doe"
+                        className="form-input"
+                      />
+                    </FormField>
+                    <FormField label="Email *" htmlFor={`m-email-${i}`}>
+                      <input
+                        id={`m-email-${i}`}
+                        value={m.email}
+                        type="email"
+                        onChange={(e) => updateMember(i, 'email', e.target.value)}
+                        placeholder="jane@college.edu"
+                        className="form-input"
+                      />
+                    </FormField>
+                    <FormField label="Role" htmlFor={`m-role-${i}`} spanFull>
+                      <input
+                        id={`m-role-${i}`}
+                        value={m.role}
+                        onChange={(e) => updateMember(i, 'role', e.target.value)}
+                        placeholder="e.g. ML Dev"
+                        className="form-input"
+                      />
+                    </FormField>
+                  </FormGrid>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
+          </FormField>
 
-        {/* Links */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="form-group">
-            <label className="form-label">GitHub Repository Link</label>
-            <input value={githubLink} onChange={(e) => setGithubLink(e.target.value)}
-              placeholder="https://github.com/yourteam/project" className="form-input" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Google Drive Video Link</label>
-            <input value={driveLink} onChange={(e) => setDriveLink(e.target.value)}
-              placeholder="https://drive.google.com/..." className="form-input" />
-          </div>
-        </div>
+          <FormField label="PPT / presentation" htmlFor="rt-ppt">
+            <div className="file-input-wrapper">
+              <input
+                id="rt-ppt"
+                type="file"
+                accept=".ppt,.pptx,.pdf"
+                onChange={(e) => setPptFile(e.target.files[0])}
+              />
+            </div>
+            <span className="form-hint">PDF, PPT, PPTX — max 20MB</span>
+          </FormField>
 
-        <button type="submit" disabled={submitting} className="btn btn-primary btn-full" style={{ marginTop: 8 }}>
-          {submitting ? (
-            <>
-              <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
-              Submitting…
-            </>
-          ) : '✦ Submit Registration'}
-        </button>
+          <FormField label="Abstract / report" htmlFor="rt-abs">
+            <div className="file-input-wrapper">
+              <input
+                id="rt-abs"
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setAbstractFile(e.target.files[0])}
+              />
+            </div>
+            <span className="form-hint">PDF, DOC, DOCX — max 20MB</span>
+          </FormField>
+
+          <FormField label="GitHub repository" htmlFor="rt-gh">
+            <input
+              id="rt-gh"
+              value={githubLink}
+              onChange={(e) => {
+                setGithubLink(e.target.value);
+                setGithubLinkError('');
+              }}
+              onBlur={() =>
+                setGithubLinkError(
+                  isValidGithub(githubLink) ? '' : 'Please enter a valid GitHub URL'
+                )
+              }
+              placeholder="https://github.com/yourteam/project"
+              className="form-input"
+            />
+            {githubLinkError ? <p className="form-inline-error">{githubLinkError}</p> : null}
+          </FormField>
+
+          <FormField label="Google Drive video" htmlFor="rt-drive">
+            <input
+              id="rt-drive"
+              value={driveLink}
+              onChange={(e) => {
+                setDriveLink(e.target.value);
+                setDriveLinkError('');
+              }}
+              onBlur={() =>
+                setDriveLinkError(
+                  isValidDrive(driveLink) ? '' : 'Please enter a valid Google Drive URL'
+                )
+              }
+              placeholder="https://drive.google.com/..."
+              className="form-input"
+            />
+            {driveLinkError ? <p className="form-inline-error">{driveLinkError}</p> : null}
+          </FormField>
+        </FormGrid>
       </form>
 
       <ConfirmDialog
@@ -252,7 +351,7 @@ const RegisterTeamPage = () => {
         onConfirm={executeRegistration}
         onCancel={() => setConfirmOpen(false)}
       />
-    </Layout>
+    </FormLayout>
   );
 };
 

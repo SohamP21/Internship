@@ -50,6 +50,12 @@ const ScoreCard = ({ registrationId }) => {
     </div>
   );
 
+  const official = scoreData.scoringComplete && scoreData.averageScore != null;
+  const main = official ? scoreData.averageScore : scoreData.averageRawTotalScore;
+  const sub = official
+    ? 'Final score based on all assigned judges.'
+    : `Provisional · ${scoreData.judgeCount}/${scoreData.expectedJudgeCount ?? scoreData.judgeCount} judges submitted`;
+
   return (
     <div style={{
       marginTop: 14, padding: '16px 18px',
@@ -59,17 +65,14 @@ const ScoreCard = ({ registrationId }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
         <div style={{ textAlign: 'center' }}>
           <p className="score-big" style={{ color: 'var(--success)', margin: 0 }}>
-            {scoreData.averageScore}
+            {main ?? '—'}
           </p>
-          <p className="score-label">avg score</p>
+          <p className="score-label">{official ? 'Official score' : 'Provisional'}</p>
         </div>
         <div style={{ width: 1, height: 36, background: 'var(--success-border)' }} />
         <div>
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--success)' }}>
-            Evaluated by <strong>{scoreData.judgeCount}</strong> judge{scoreData.judgeCount !== 1 ? 's' : ''}
-          </p>
-          <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--success)' }}>
-            Total score sum: <strong>{scoreData.totalScore}</strong>
+            {sub}
           </p>
         </div>
       </div>
@@ -146,6 +149,12 @@ const MyRegistrationsPage = () => {
                   </span>
                 </div>
               </div>
+
+              {reg.roomNo && String(reg.roomNo).trim() ? (
+                <p className="form-hint reg-room-banner mb-0">
+                  Assigned room: <strong>{String(reg.roomNo).trim()}</strong>
+                </p>
+              ) : null}
 
               {/* Domains */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>

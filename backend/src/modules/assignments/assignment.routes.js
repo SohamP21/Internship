@@ -27,6 +27,12 @@ router.delete(
   assignmentController.removeAssignment
 );
 
+router.patch(
+  '/events/:eventId/registrations/:registrationId/room',
+  authorize('coordinator'),
+  assignmentController.setRegistrationRoom
+);
+
 // Judge — get their assigned teams for an event
 router.get(
   '/events/:eventId/my',
